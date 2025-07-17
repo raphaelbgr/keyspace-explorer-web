@@ -36,8 +36,12 @@ import {
   NavigateNext as NavigateNextIcon
 } from '@mui/icons-material';
 import { useThemeStore } from './store/themeStore';
+import { useLanguageStore } from './store/languageStore';
+import { useTranslation, formatTranslation } from './translations';
 import ThemeToggleClient from './components/ThemeToggleClient';
+import LanguageSelector from './components/LanguageSelector';
 import ControlPanel from './components/ControlPanel';
+import AdvancedNavigation from './components/AdvancedNavigation';
 import UltraOptimizedDashboard from './components/UltraOptimizedDashboard';
 import BalanceStatus from './components/BalanceStatus';
 
@@ -72,6 +76,7 @@ export default function Dashboard() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { mode } = useThemeStore();
+  const t = useTranslation();
   
   const [currentPage, setCurrentPage] = useState<string>('1');
   const [isScanning, setIsScanning] = useState(false);
@@ -135,10 +140,36 @@ export default function Dashboard() {
       const data = await response.json();
       setPageData(data);
       setCurrentPage(pageToGenerate);
-      setNotification({ message: `Page ${pageToGenerate} generated successfully!`, type: 'success' });
+      setNotification({ message: formatTranslation(t.pageGenerated, { page: pageToGenerate }), type: 'success' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
-      setNotification({ message: 'Failed to generate page', type: 'error' });
+      setNotification({ message: t.failedToGenerate, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRandomPage = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/generate-random-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate random page');
+      }
+
+      const data = await response.json();
+      setPageData(data);
+      setCurrentPage(data.pageNumber);
+      setNotification({ message: `Random page ${data.pageNumber} generated successfully`, type: 'success' });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setNotification({ message: 'Failed to generate random page', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -149,7 +180,7 @@ export default function Dashboard() {
     
     setIsScanning(true);
     setScanProgress(0);
-    setNotification({ message: 'Scan started!', type: 'info' });
+    setNotification({ message: t.scanStarted, type: 'info' });
     
     try {
       const addresses = pageData.keys.flatMap(key => Object.values(key.addresses));
@@ -164,10 +195,10 @@ export default function Dashboard() {
       }
 
       const { balances } = await response.json();
-      setNotification({ message: 'Scan completed successfully!', type: 'success' });
+      setNotification({ message: t.scanCompleted, type: 'success' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
-      setNotification({ message: 'Scan failed', type: 'error' });
+      setNotification({ message: t.scanFailed, type: 'error' });
     } finally {
       setIsScanning(false);
       setScanProgress(100);
@@ -177,7 +208,7 @@ export default function Dashboard() {
   const handleStopScan = () => {
     setIsScanning(false);
     setScanProgress(0);
-    setNotification({ message: 'Scan stopped', type: 'info' });
+    setNotification({ message: t.scanStopped, type: 'info' });
   };
 
   const handleFetchBalances = async () => {
@@ -239,12 +270,12 @@ export default function Dashboard() {
       setCheckedAddresses(totalAddresses);
       
       setNotification({ 
-        message: `Balances fetched successfully from ${source}! Checked ${totalAddresses} addresses.`, 
+        message: formatTranslation(t.balancesFetched, { source, count: totalAddresses }), 
         type: 'success' 
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
-      setNotification({ message: 'Failed to fetch balances', type: 'error' });
+      setNotification({ message: t.failedToFetch, type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -260,11 +291,15 @@ export default function Dashboard() {
     return pageData ? Math.ceil(pageData.keys.length / keysPerPage) : 0;
   }, [pageData, keysPerPage]);
 
-
-
   const handlePageChange = useThrottle(useCallback((page: string) => {
     setCurrentPage(page);
+    setCurrentKeysPage(1); // Reset to first page of keys when changing main page
   }, []), 100);
+
+  const handleKeysPerPageChange = useCallback((newKeysPerPage: number) => {
+    setKeysPerPage(newKeysPerPage);
+    setCurrentKeysPage(1); // Reset to first page when changing keys per page
+  }, []);
 
   const handleApiSourceChange = useCallback((source: string) => {
     setApiSource(source);
@@ -290,23 +325,26 @@ export default function Dashboard() {
         {/* Header */}
         <Fade in timeout={800}>
           <Box sx={{ textAlign: 'center', mb: 4 }}>
-            <Typography 
-              variant="h3" 
-              component="h1" 
-              sx={{ 
-                fontWeight: 'bold',
-                background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                mb: 2,
-                fontSize: { xs: '2rem', md: '3rem' }
-              }}
-            >
-              Bitcoin Keyspace Explorer
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Box />
+              <Typography 
+                variant="h3" 
+                component="h1" 
+                sx={{ 
+                  fontWeight: 'bold',
+                  background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  fontSize: { xs: '2rem', md: '3rem' }
+                }}
+              >
+                {t.title}
+              </Typography>
+              <LanguageSelector size="medium" />
+            </Box>
             <Typography variant="h6" color="text.secondary" sx={{ mb: 3 }}>
-              Generate, scan, and explore Bitcoin private keys and addresses
+              {t.subtitle}
             </Typography>
           </Box>
         </Fade>
@@ -327,6 +365,16 @@ export default function Dashboard() {
           isScanning={isScanning}
           pageData={pageData}
           scanProgress={scanProgress}
+        />
+
+        {/* Advanced Navigation */}
+        <AdvancedNavigation
+          currentPage={parseInt(currentPage)}
+          totalPages={Math.max(1, parseInt(currentPage) + 1000)} // Estimate total pages
+          onPageChange={handlePageChange}
+          onRandomPage={handleRandomPage}
+          keysPerPage={keysPerPage}
+          onKeysPerPageChange={handleKeysPerPageChange}
         />
 
         {/* Balance Status */}
@@ -359,15 +407,15 @@ export default function Dashboard() {
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
                   <Typography variant="h5" component="h2">
-                    Page {pageData.pageNumber} Results
+                    {formatTranslation(t.pageResults, { page: pageData.pageNumber })}
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                     <Chip 
-                      label={`${pageData.keys.length} Keys`} 
+                      label={`${pageData.keys.length} ${t.keys}`} 
                       color="primary" 
                     />
                     <Chip 
-                      label={`${pageData.totalPageBalance.toFixed(8)} BTC`} 
+                      label={`${pageData.totalPageBalance.toFixed(8)} ${t.btc}`} 
                       color="secondary" 
                       icon={<BalanceIcon />}
                     />
@@ -387,7 +435,7 @@ export default function Dashboard() {
                 {/* Navigation */}
                 {pageData.keys.length > keysPerPage && (
                   <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 3, gap: 1 }}>
-                    <Tooltip title="First Page" arrow>
+                    <Tooltip title={t.firstPage} arrow>
                       <IconButton
                         onClick={() => setCurrentKeysPage(1)}
                         disabled={currentKeysPage === 1}
@@ -397,7 +445,7 @@ export default function Dashboard() {
                       </IconButton>
                     </Tooltip>
                     
-                    <Tooltip title="Previous Page" arrow>
+                    <Tooltip title={t.previousPage} arrow>
                       <IconButton
                         onClick={() => setCurrentKeysPage(prev => Math.max(1, prev - 1))}
                         disabled={currentKeysPage === 1}
@@ -408,10 +456,10 @@ export default function Dashboard() {
                     </Tooltip>
                     
                     <Typography variant="body2" sx={{ mx: 2, minWidth: '60px', textAlign: 'center' }}>
-                      Page {currentKeysPage} of {totalPages}
+                      {formatTranslation(t.pageOf, { current: currentKeysPage, total: totalPages })}
                     </Typography>
                     
-                    <Tooltip title="Next Page" arrow>
+                    <Tooltip title={t.nextPage} arrow>
                       <IconButton
                         onClick={() => setCurrentKeysPage(prev => Math.min(totalPages, prev + 1))}
                         disabled={currentKeysPage === totalPages}
@@ -421,7 +469,7 @@ export default function Dashboard() {
                       </IconButton>
                     </Tooltip>
                     
-                    <Tooltip title="Last Page" arrow>
+                    <Tooltip title={t.lastPage} arrow>
                       <IconButton
                         onClick={() => setCurrentKeysPage(totalPages)}
                         disabled={currentKeysPage === totalPages}
@@ -542,7 +590,7 @@ export default function Dashboard() {
         >
           <Card sx={{ p: 3, textAlign: 'center' }}>
             <LinearProgress sx={{ mb: 2 }} />
-            <Typography>Processing...</Typography>
+            <Typography>{t.processing}</Typography>
           </Card>
         </Box>
       )}

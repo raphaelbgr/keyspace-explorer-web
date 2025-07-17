@@ -18,6 +18,7 @@ import {
   CircularProgress
 } from '@mui/material';
 import { AccountBalance as BalanceIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from '@mui/icons-material';
+import { useTranslation, formatTranslation } from '../translations';
 import LazyKeyCard from './LazyKeyCard';
 
 interface UltraOptimizedDashboardProps {
@@ -41,6 +42,7 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
 }) => {
   const [loadingAddresses, setLoadingAddresses] = useState<Set<number>>(new Set());
   const [loadedAddresses, setLoadedAddresses] = useState<Set<number>>(new Set());
+  const t = useTranslation();
 
   // Show all displayed keys without artificial limiting
   const optimizedKeys = useMemo(() => {
@@ -92,15 +94,16 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Expand</TableCell>
-                <TableCell>Key #</TableCell>
-                <TableCell>Private Key</TableCell>
-                <TableCell>Total Balance</TableCell>
+                <TableCell>{t.expand}</TableCell>
+                <TableCell>{t.keyNumber}</TableCell>
+                <TableCell>{t.privateKeyHex}</TableCell>
+                <TableCell>{t.totalBalance}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {optimizedKeys.map((key, index) => {
-                const keyNumber = index + 1 + (currentKeysPage - 1) * keysPerPage;
+                // Use the actual key number from the backend data (1-based)
+                const keyNumber = key.index + 1;
                 const globalIndex = (currentKeysPage - 1) * keysPerPage + index;
                 const isExpanded = expandedKeys.has(globalIndex);
                 const isLoadingAddresses = loadingAddresses.has(globalIndex);
@@ -122,10 +125,10 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                         {key.privateKey}
                       </TableCell>
                       <TableCell>
-                        {key.totalBalance.toFixed(8)} BTC
+                        {key.totalBalance.toFixed(8)} {t.btc}
                         {key.totalBalance > 0 && (
                           <Chip 
-                            label="FUNDS!" 
+                            label={t.funds} 
                             color="success" 
                             size="small"
                             sx={{ ml: 1 }}
@@ -141,18 +144,18 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                               <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
                                 <CircularProgress size={24} />
                                 <Typography variant="body2" sx={{ ml: 2 }}>
-                                  Loading addresses...
+                                  {t.loadingAddresses}
                                 </Typography>
                               </Box>
                             ) : areAddressesLoaded ? (
                               <Box>
                                 <Typography variant="h6" gutterBottom component="div">
-                                  Key {keyNumber} - Full Details
+                                  {formatTranslation(t.keyDetails, { number: keyNumber })}
                                 </Typography>
                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                   <Box>
                                     <Typography variant="subtitle2" color="text.secondary">
-                                      Private Key:
+                                      {t.privateKey}:
                                     </Typography>
                                     <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>
                                       {key.privateKey}
@@ -160,49 +163,75 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                   </Box>
                                   
                                   <Box>
-                                    <Typography variant="subtitle2" color="text.secondary">
-                                      All Addresses:
+                                    <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                                      {t.allAddresses}:
                                     </Typography>
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
-                                      <Box>
-                                        <Typography variant="caption" color="text.secondary">P2PKH (Compressed):</Typography>
-                                        <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.7rem', wordBreak: 'break-all' }}>
-                                          {key.addresses.p2pkh_compressed}
-                                        </Typography>
-                                      </Box>
-                                      
-                                      <Box>
-                                        <Typography variant="caption" color="text.secondary">P2PKH (Uncompressed):</Typography>
-                                        <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.7rem', wordBreak: 'break-all' }}>
-                                          {key.addresses.p2pkh_uncompressed}
-                                        </Typography>
-                                      </Box>
-                                      
-                                      <Box>
-                                        <Typography variant="caption" color="text.secondary">P2WPKH:</Typography>
-                                        <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.7rem', wordBreak: 'break-all' }}>
-                                          {key.addresses.p2wpkh}
-                                        </Typography>
-                                      </Box>
-                                      
-                                      <Box>
-                                        <Typography variant="caption" color="text.secondary">P2SH-P2WPKH:</Typography>
-                                        <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.7rem', wordBreak: 'break-all' }}>
-                                          {key.addresses.p2sh_p2wpkh}
-                                        </Typography>
-                                      </Box>
-                                      
-                                      <Box>
-                                        <Typography variant="caption" color="text.secondary">P2TR:</Typography>
-                                        <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.7rem', wordBreak: 'break-all' }}>
-                                          {key.addresses.p2tr}
-                                        </Typography>
-                                      </Box>
-                                    </Box>
+                                    <Table size="small">
+                                      <TableHead>
+                                        <TableRow>
+                                          <TableCell>Address Type</TableCell>
+                                          <TableCell>Address</TableCell>
+                                          <TableCell align="right">Balance (BTC)</TableCell>
+                                        </TableRow>
+                                      </TableHead>
+                                      <TableBody>
+                                        <TableRow>
+                                          <TableCell>{t.p2pkhCompressed}</TableCell>
+                                          <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.7rem', wordBreak: 'break-all' }}>
+                                            {key.addresses.p2pkh_compressed}
+                                          </TableCell>
+                                          <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
+                                            {key.balances.p2pkh_compressed.toFixed(8)}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>{t.p2pkhUncompressed}</TableCell>
+                                          <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.7rem', wordBreak: 'break-all' }}>
+                                            {key.addresses.p2pkh_uncompressed}
+                                          </TableCell>
+                                          <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
+                                            {key.balances.p2pkh_uncompressed.toFixed(8)}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>{t.p2wpkh}</TableCell>
+                                          <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.7rem', wordBreak: 'break-all' }}>
+                                            {key.addresses.p2wpkh}
+                                          </TableCell>
+                                          <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
+                                            {key.balances.p2wpkh.toFixed(8)}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>{t.p2shP2wpkh}</TableCell>
+                                          <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.7rem', wordBreak: 'break-all' }}>
+                                            {key.addresses.p2sh_p2wpkh}
+                                          </TableCell>
+                                          <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
+                                            {key.balances.p2sh_p2wpkh.toFixed(8)}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>{t.p2tr}</TableCell>
+                                          <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.7rem', wordBreak: 'break-all' }}>
+                                            {key.addresses.p2tr}
+                                          </TableCell>
+                                          <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
+                                            {key.balances.p2tr.toFixed(8)}
+                                          </TableCell>
+                                        </TableRow>
+                                      </TableBody>
+                                    </Table>
                                   </Box>
                                 </Box>
                               </Box>
-                            ) : null}
+                            ) : (
+                              <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                                <Typography variant="body2" color="text.secondary">
+                                  {t.clickToLoadAddresses}
+                                </Typography>
+                              </Box>
+                            )}
                           </Box>
                         </Collapse>
                       </TableCell>

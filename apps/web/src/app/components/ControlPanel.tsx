@@ -23,6 +23,7 @@ import {
   Speed as SpeedIcon,
   Settings as SettingsIcon
 } from '@mui/icons-material';
+import { useTranslation } from '../translations';
 
 interface ControlPanelProps {
   currentPage: string;
@@ -57,6 +58,8 @@ const ControlPanel = memo<ControlPanelProps>(({
   pageData,
   scanProgress
 }) => {
+  const t = useTranslation();
+  
   // Prevent excessive re-renders
   const handlePageChange = useCallback((page: string) => {
     if (page !== currentPage) {
@@ -90,15 +93,15 @@ const ControlPanel = memo<ControlPanelProps>(({
           <Grid item xs={12} md={2}>
             <Tooltip title="Select API source for balance checking" arrow>
               <FormControl fullWidth size="small">
-                <InputLabel>API Source</InputLabel>
+                <InputLabel>{t.apiSource}</InputLabel>
                 <Select
                   value={apiSource}
                   onChange={(e) => onApiSourceChange(e.target.value)}
-                  label="API Source"
+                  label={t.apiSource}
                 >
-                  <MenuItem value="local">Local</MenuItem>
-                  <MenuItem value="blockstream">Blockstream</MenuItem>
-                  <MenuItem value="mempool">Mempool.space</MenuItem>
+                  <MenuItem value="local">{t.local}</MenuItem>
+                  <MenuItem value="blockstream">{t.blockstream}</MenuItem>
+                  <MenuItem value="mempool">{t.mempool}</MenuItem>
                 </Select>
               </FormControl>
             </Tooltip>
@@ -118,7 +121,7 @@ const ControlPanel = memo<ControlPanelProps>(({
                   '&:hover': { background: 'linear-gradient(45deg, #FF5252, #26A69A)' }
                 }}
               >
-                Generate
+                {t.generatePage}
               </Button>
             </Tooltip>
           </Grid>
@@ -133,7 +136,7 @@ const ControlPanel = memo<ControlPanelProps>(({
                 startIcon={<BalanceIcon />}
                 size="small"
               >
-                Fetch Balances
+                {t.fetchBalances}
               </Button>
             </Tooltip>
           </Grid>
@@ -149,7 +152,7 @@ const ControlPanel = memo<ControlPanelProps>(({
                 startIcon={isScanning ? <StopIcon /> : <PlayIcon />}
                 size="small"
               >
-                {isScanning ? 'Stop' : 'Scan'}
+                {isScanning ? t.stopScan : t.startScan}
               </Button>
             </Tooltip>
           </Grid>
@@ -163,7 +166,7 @@ const ControlPanel = memo<ControlPanelProps>(({
                 startIcon={<SettingsIcon />}
                 size="small"
               >
-                {displayMode === 'grid' ? 'Table' : 'Grid'}
+                {displayMode === 'grid' ? t.table : t.grid}
               </Button>
             </Tooltip>
           </Grid>

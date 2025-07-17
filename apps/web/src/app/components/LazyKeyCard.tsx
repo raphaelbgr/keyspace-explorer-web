@@ -1,12 +1,20 @@
 import React, { memo, useState, useEffect } from 'react';
 import { Card, Typography, IconButton, Chip, Box, Button, Collapse, CircularProgress } from '@mui/material';
-import { ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon, Visibility as VisibilityIcon } from '@mui/icons-material';
+import { ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon, Visibility as VisibilityIcon, AccountBalance as BalanceIcon } from '@mui/icons-material';
 import AddressModal from './AddressModal';
 
 interface LazyKeyCardProps {
   keyData: {
     privateKey: string;
+    index: number;
     totalBalance: number;
+    balances: {
+      p2pkh_compressed: number;
+      p2pkh_uncompressed: number;
+      p2wpkh: number;
+      p2sh_p2wpkh: number;
+      p2tr: number;
+    };
     addresses: {
       p2pkh_compressed: string;
       p2pkh_uncompressed: string;
@@ -106,7 +114,8 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
     );
   }
 
-  const keyNumber = index + 1 + (currentKeysPage - 1) * keysPerPage;
+  // Use the actual key number from the backend data (1-based)
+  const keyNumber = keyData.index + 1;
   
   return (
     <>
@@ -135,9 +144,12 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
         </Typography>
         
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          <Typography variant="caption" color="text.secondary">
-            {keyData.totalBalance.toFixed(8)} BTC
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <BalanceIcon sx={{ fontSize: '0.8rem', color: 'text.secondary' }} />
+            <Typography variant="caption" color="text.secondary">
+              {keyData.totalBalance.toFixed(8)} BTC
+            </Typography>
+          </Box>
           {keyData.totalBalance > 0 && (
             <Chip 
               label="FUNDS!" 
@@ -146,6 +158,39 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
               sx={{ animation: 'pulse 2s infinite' }}
             />
           )}
+        </Box>
+
+        {/* Balance Breakdown */}
+        <Box sx={{ mb: 1 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+            Balance Breakdown:
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="caption" color="text.secondary">P2PKH:</Typography>
+              <Typography variant="caption" fontFamily="monospace">
+                {(keyData.balances.p2pkh_compressed + keyData.balances.p2pkh_uncompressed).toFixed(8)}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="caption" color="text.secondary">P2WPKH:</Typography>
+              <Typography variant="caption" fontFamily="monospace">
+                {keyData.balances.p2wpkh.toFixed(8)}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="caption" color="text.secondary">P2SH:</Typography>
+              <Typography variant="caption" fontFamily="monospace">
+                {keyData.balances.p2sh_p2wpkh.toFixed(8)}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="caption" color="text.secondary">P2TR:</Typography>
+              <Typography variant="caption" fontFamily="monospace">
+                {keyData.balances.p2tr.toFixed(8)}
+              </Typography>
+            </Box>
+          </Box>
         </Box>
 
         <Button
@@ -212,7 +257,13 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
                   </Box>
                 </Box>
               </>
-            ) : null}
+            ) : (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Click to load addresses
+                </Typography>
+              </Box>
+            )}
           </Box>
         </Collapse>
       </Card>
@@ -220,8 +271,12 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
       <AddressModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        keyData={keyData}
         keyNumber={keyNumber}
+        keyData={{
+          privateKey: keyData.privateKey,
+          addresses: keyData.addresses,
+          totalBalance: keyData.totalBalance
+        }}
       />
     </>
   );

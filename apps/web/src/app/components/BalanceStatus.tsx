@@ -18,6 +18,7 @@ import {
   CheckCircle as CheckCircleIcon,
   Schedule as ScheduleIcon
 } from '@mui/icons-material';
+import { useTranslation } from '../translations';
 
 interface BalanceStatusProps {
   totalBalance: number;
@@ -40,6 +41,7 @@ const BalanceStatus = ({
   onRefresh,
   hasFunds
 }: BalanceStatusProps) => {
+  const t = useTranslation();
   const progress = totalAddresses > 0 ? (checkedAddresses / totalAddresses) * 100 : 0;
   const hasChecked = checkedAddresses > 0;
 
@@ -48,7 +50,7 @@ const BalanceStatus = ({
       <CardContent>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6" component="h3">
-            Balance Status
+            {t.totalBalance}
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
             <Chip 
@@ -74,10 +76,10 @@ const BalanceStatus = ({
               <BalanceIcon color="primary" />
               <Box>
                 <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                  {totalBalance.toFixed(8)} BTC
+                  {totalBalance.toFixed(8)} {t.btc}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Total Balance
+                  {t.totalBalance}
                 </Typography>
               </Box>
             </Box>
@@ -88,7 +90,7 @@ const BalanceStatus = ({
                 icon={<CheckCircleIcon />}
                 sx={{ mb: 2 }}
               >
-                Funds found! 🎉
+                {t.funds} 🎉
               </Alert>
             )}
           </Grid>
