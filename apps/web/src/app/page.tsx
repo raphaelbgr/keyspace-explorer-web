@@ -38,8 +38,7 @@ import {
 import { useThemeStore } from './store/themeStore';
 import ThemeToggleClient from './components/ThemeToggleClient';
 import ControlPanel from './components/ControlPanel';
-import KeyCard from './components/KeyCard';
-import KeyTableRow from './components/KeyTableRow';
+import UltraOptimizedDashboard from './components/UltraOptimizedDashboard';
 
 interface PageData {
   pageNumber: string;
@@ -90,11 +89,29 @@ export default function Dashboard() {
   const debouncedCurrentPage = useDebounce(currentPage, 300);
   const expandedKeysRef = useRef<Set<number>>(new Set());
   const lastRenderTime = useRef<number>(0);
+  const renderCount = useRef<number>(0);
 
   // Auto-load first page on component mount
   useEffect(() => {
     handleGeneratePage('1');
   }, []);
+
+  const toggleKeyExpansion = useThrottle(useCallback((keyIndex: number) => {
+    const now = performance.now();
+    if (now - lastRenderTime.current < 16) return; // 60fps limit
+    
+    setExpandedKeys(prev => {
+      const newExpanded = new Set(prev);
+      if (newExpanded.has(keyIndex)) {
+        newExpanded.delete(keyIndex);
+      } else {
+        newExpanded.add(keyIndex);
+      }
+      expandedKeysRef.current = newExpanded;
+      lastRenderTime.current = now;
+      return newExpanded;
+    });
+  }, []), 16);
 
   const handleGeneratePage = async (pageNumber?: string) => {
     const pageToGenerate = pageNumber || currentPage;
@@ -186,23 +203,6 @@ export default function Dashboard() {
     }
   };
 
-  const toggleKeyExpansion = useThrottle(useCallback((keyIndex: number) => {
-    const now = performance.now();
-    if (now - lastRenderTime.current < 16) return; // 60fps limit
-    
-    setExpandedKeys(prev => {
-      const newExpanded = new Set(prev);
-      if (newExpanded.has(keyIndex)) {
-        newExpanded.delete(keyIndex);
-      } else {
-        newExpanded.add(keyIndex);
-      }
-      expandedKeysRef.current = newExpanded;
-      lastRenderTime.current = now;
-      return newExpanded;
-    });
-  }, []), 16);
-
   const displayedKeys = useMemo(() => {
     if (!pageData) return [];
     const startIndex = (currentKeysPage - 1) * keysPerPage;
@@ -212,6 +212,8 @@ export default function Dashboard() {
   const totalPages = useMemo(() => {
     return pageData ? Math.ceil(pageData.keys.length / keysPerPage) : 0;
   }, [pageData, keysPerPage]);
+
+
 
   const handlePageChange = useThrottle(useCallback((page: string) => {
     setCurrentPage(page);
@@ -311,52 +313,15 @@ export default function Dashboard() {
                   </Box>
                 </Box>
 
-                {displayMode === 'grid' ? (
-                  // Grid Display
-                  <Grid container spacing={2}>
-                    {displayedKeys.map((key, index) => (
-                      <Grid item xs={12} sm={6} md={4} lg={3} key={index}>
-                        <KeyCard
-                          keyData={key}
-                          index={index}
-                          isExpanded={expandedKeys.has((currentKeysPage - 1) * keysPerPage + index)}
-                          onToggleExpansion={() => toggleKeyExpansion((currentKeysPage - 1) * keysPerPage + index)}
-                          keysPerPage={keysPerPage}
-                          currentKeysPage={currentKeysPage}
-                        />
-                      </Grid>
-                    ))}
-                  </Grid>
-                ) : (
-                  // Table Display
-                  <Box sx={{ overflow: 'auto' }}>
-                    <TableContainer component={Paper} sx={{ background: 'transparent' }}>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Key #</TableCell>
-                            <TableCell>Private Key</TableCell>
-                            <TableCell>Balance</TableCell>
-                            <TableCell>Status</TableCell>
-                            <TableCell>Actions</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {displayedKeys.map((key, index) => (
-                            <KeyTableRow
-                              keyData={key}
-                              index={index}
-                              isExpanded={expandedKeys.has((currentKeysPage - 1) * keysPerPage + index)}
-                              onToggleExpansion={() => toggleKeyExpansion((currentKeysPage - 1) * keysPerPage + index)}
-                              keysPerPage={keysPerPage}
-                              currentKeysPage={currentKeysPage}
-                            />
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </Box>
-                )}
+                <UltraOptimizedDashboard
+                  pageData={pageData}
+                  displayedKeys={displayedKeys}
+                  keysPerPage={keysPerPage}
+                  currentKeysPage={currentKeysPage}
+                  expandedKeys={expandedKeys}
+                  onToggleExpansion={toggleKeyExpansion}
+                  displayMode={displayMode}
+                />
 
                 {/* Navigation */}
                 {pageData.keys.length > keysPerPage && (
@@ -410,8 +375,9 @@ export default function Dashboard() {
             </Card>
         )}
 
-        {/* Info Cards */}
-        <Grid container spacing={3} sx={{ mt: 3 }}>
+        {/* Info Cards - Disabled for performance */}
+        {false && (
+          <Grid container spacing={3} sx={{ mt: 3 }}>
             <Grid item xs={12} md={4}>
               <Tooltip title="Learn more about Bitcoin address types and formats" arrow>
                 <Card sx={{ 
@@ -478,6 +444,7 @@ export default function Dashboard() {
               </Tooltip>
             </Grid>
           </Grid>
+        )}
       </Box>
 
       {/* Notifications */}
