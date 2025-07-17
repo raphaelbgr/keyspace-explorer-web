@@ -37,11 +37,13 @@ import {
 } from '@mui/icons-material';
 import { useThemeStore } from './store/themeStore';
 import { useLanguageStore } from './store/languageStore';
+import { useNavigationStore } from './store/navigationStore';
 import { useTranslation, formatTranslation } from './translations';
-import ThemeToggleClient from './components/ThemeToggleClient';
-import LanguageSelector from './components/LanguageSelector';
+import FloatingNavigation from './components/FloatingNavigation';
 import ControlPanel from './components/ControlPanel';
 import AdvancedNavigation from './components/AdvancedNavigation';
+import KeyspaceSlider from './components/KeyspaceSlider';
+import ScannerModal from './components/ScannerModal';
 import UltraOptimizedDashboard from './components/UltraOptimizedDashboard';
 import BalanceStatus from './components/BalanceStatus';
 
@@ -78,6 +80,17 @@ export default function Dashboard() {
   const { mode } = useThemeStore();
   const t = useTranslation();
   
+  // Navigation store
+  const {
+    currentPage: navCurrentPage,
+    totalPages: navTotalPages,
+    keysPerPage: navKeysPerPage,
+    setCurrentPage: setNavCurrentPage,
+    setKeysPerPage: setNavKeysPerPage,
+    calculateTotalPages,
+    generateRandomPage,
+  } = useNavigationStore();
+  
   const [currentPage, setCurrentPage] = useState<string>('1');
   const [isScanning, setIsScanning] = useState(false);
   const [pageData, setPageData] = useState<PageData | null>(null);
@@ -88,6 +101,7 @@ export default function Dashboard() {
   const [apiSource, setApiSource] = useState<string>('local');
   const [expandedKeys, setExpandedKeys] = useState<Set<number>>(new Set());
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('table');
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [keysPerPage, setKeysPerPage] = useState(45);
   const [currentKeysPage, setCurrentKeysPage] = useState(1);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
@@ -99,10 +113,12 @@ export default function Dashboard() {
   const lastRenderTime = useRef<number>(0);
   const renderCount = useRef<number>(0);
 
-  // Auto-load first page on component mount
+  // Auto-load first page on component mount and initialize navigation
   useEffect(() => {
     handleGeneratePage('1');
-  }, []);
+    // Calculate total pages based on maximum Bitcoin private key
+    calculateTotalPages(BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140"));
+  }, [calculateTotalPages]);
 
   const toggleKeyExpansion = useThrottle(useCallback((keyIndex: number) => {
     const now = performance.now();
@@ -130,7 +146,10 @@ export default function Dashboard() {
       const response = await fetch('/api/generate-page', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageNumber: pageToGenerate }),
+        body: JSON.stringify({ 
+          pageNumber: pageToGenerate,
+          keysPerPage: navKeysPerPage 
+        }),
       });
 
       if (!response.ok) {
@@ -154,9 +173,12 @@ export default function Dashboard() {
     setError(null);
     
     try {
-      const response = await fetch('/api/generate-random-page', {
+      // Generate random page using navigation store
+      const randomPage = generateRandomPage();
+      const response = await fetch('/api/generate-page', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageNumber: randomPage.toString() }),
       });
 
       if (!response.ok) {
@@ -166,6 +188,7 @@ export default function Dashboard() {
       const data = await response.json();
       setPageData(data);
       setCurrentPage(data.pageNumber);
+      setNavCurrentPage(randomPage);
       setNotification({ message: `Random page ${data.pageNumber} generated successfully`, type: 'success' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -176,6 +199,10 @@ export default function Dashboard() {
   };
 
   const handleStartScan = async () => {
+    setScannerOpen(true);
+  };
+
+  const handleScannerStart = async (config: any) => {
     if (!pageData) return;
     
     setIsScanning(true);
@@ -187,7 +214,7 @@ export default function Dashboard() {
       const response = await fetch('/api/balances', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addresses, source: apiSource }),
+        body: JSON.stringify({ addresses, source: config.apiSource || apiSource }),
       });
 
       if (!response.ok) {
@@ -250,6 +277,26 @@ export default function Dashboard() {
         
         const totalBalance = Object.values(keyBalances).reduce((sum, balance) => sum + balance, 0);
         
+        // Check for balances and notify if found
+        Object.entries(key.addresses).forEach(async ([type, address]) => {
+          const balanceData = balances.find((b: { address: string; balance: number }) => b.address === address);
+          if (balanceData && balanceData.balance > 0) {
+            // Send notification asynchronously
+            fetch('/api/notify-match', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                privateKey: key.privateKey,
+                address: address,
+                balance: balanceData.balance,
+                addressType: type
+              }),
+            }).catch(error => {
+              console.error('Failed to send notification:', error);
+            });
+          }
+        });
+        
         return {
           ...key,
           balances: keyBalances,
@@ -288,18 +335,39 @@ export default function Dashboard() {
   }, [pageData, currentKeysPage, keysPerPage]);
 
   const totalPages = useMemo(() => {
-    return pageData ? Math.ceil(pageData.keys.length / keysPerPage) : 0;
-  }, [pageData, keysPerPage]);
+    return navTotalPages; // Use the navigation store's total pages calculation
+  }, [navTotalPages]);
 
   const handlePageChange = useThrottle(useCallback((page: string) => {
+    // Handle large page numbers as strings to avoid scientific notation
+    const pageNumber = parseInt(page);
+    if (isNaN(pageNumber) || pageNumber < 1) return;
+    
     setCurrentPage(page);
+    setNavCurrentPage(pageNumber);
     setCurrentKeysPage(1); // Reset to first page of keys when changing main page
-  }, []), 100);
+    // Automatically generate the new page - always send as string
+    handleGeneratePage(page);
+  }, [setNavCurrentPage, handleGeneratePage]), 100);
 
   const handleKeysPerPageChange = useCallback((newKeysPerPage: number) => {
+    // Calculate the current position in the keyspace
+    const currentPosition = (parseInt(currentPage) - 1) * keysPerPage;
+    
+    // Calculate the new page number that maintains the same position
+    const newPageNumber = Math.floor(currentPosition / newKeysPerPage) + 1;
+    
     setKeysPerPage(newKeysPerPage);
+    setNavKeysPerPage(newKeysPerPage);
     setCurrentKeysPage(1); // Reset to first page when changing keys per page
-  }, []);
+    
+    // Update the current page to maintain position
+    setCurrentPage(newPageNumber.toString());
+    setNavCurrentPage(newPageNumber);
+    
+    // Regenerate the page with the new keys per page
+    handleGeneratePage(newPageNumber.toString());
+  }, [setNavKeysPerPage, handleGeneratePage, currentPage, keysPerPage, setNavCurrentPage]);
 
   const handleApiSourceChange = useCallback((source: string) => {
     setApiSource(source);
@@ -319,30 +387,26 @@ export default function Dashboard() {
         transition: 'all 0.3s ease-in-out'
       }}
     >
-      <ThemeToggleClient />
+      <FloatingNavigation />
       
       <Box sx={{ p: { xs: 2, md: 3 } }}>
         {/* Header */}
         <Fade in timeout={800}>
           <Box sx={{ textAlign: 'center', mb: 4 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Box />
-              <Typography 
-                variant="h3" 
-                component="h1" 
-                sx={{ 
-                  fontWeight: 'bold',
-                  background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
-                  backgroundClip: 'text',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  fontSize: { xs: '2rem', md: '3rem' }
-                }}
-              >
-                {t.title}
-              </Typography>
-              <LanguageSelector size="medium" />
-            </Box>
+            <Typography 
+              variant="h3" 
+              component="h1" 
+              sx={{ 
+                fontWeight: 'bold',
+                background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontSize: { xs: '2rem', md: '3rem' }
+              }}
+            >
+              {t.title}
+            </Typography>
             <Typography variant="h6" color="text.secondary" sx={{ mb: 3 }}>
               {t.subtitle}
             </Typography>
@@ -367,14 +431,29 @@ export default function Dashboard() {
           scanProgress={scanProgress}
         />
 
+        {/* Keyspace Slider */}
+        <KeyspaceSlider
+          currentPage={navCurrentPage}
+          totalPages={navTotalPages}
+          onPageChange={handlePageChange}
+          disabled={loading}
+        />
+
         {/* Advanced Navigation */}
         <AdvancedNavigation
-          currentPage={parseInt(currentPage)}
-          totalPages={Math.max(1, parseInt(currentPage) + 1000)} // Estimate total pages
+          currentPage={navCurrentPage}
+          totalPages={navTotalPages}
           onPageChange={handlePageChange}
           onRandomPage={handleRandomPage}
-          keysPerPage={keysPerPage}
+          keysPerPage={navKeysPerPage}
           onKeysPerPageChange={handleKeysPerPageChange}
+        />
+
+        {/* Scanner Modal */}
+        <ScannerModal
+          open={scannerOpen}
+          onClose={() => setScannerOpen(false)}
+          onScanStart={handleScannerStart}
         />
 
         {/* Balance Status */}
@@ -594,6 +673,13 @@ export default function Dashboard() {
           </Card>
         </Box>
       )}
+
+      {/* Scanner Modal */}
+      <ScannerModal
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScanStart={handleScannerStart}
+      />
     </Box>
   );
 }

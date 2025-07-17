@@ -91,20 +91,20 @@ const ControlPanel = memo<ControlPanelProps>(({
           </Grid>
           
           <Grid item xs={12} md={2}>
-            <Tooltip title="Select API source for balance checking" arrow>
-              <FormControl fullWidth size="small">
+            <FormControl fullWidth size="small">
+              <Tooltip title="Select API source for balance checking" arrow placement="top">
                 <InputLabel>{t.apiSource}</InputLabel>
-                <Select
-                  value={apiSource}
-                  onChange={(e) => onApiSourceChange(e.target.value)}
-                  label={t.apiSource}
-                >
-                  <MenuItem value="local">{t.local}</MenuItem>
-                  <MenuItem value="blockstream">{t.blockstream}</MenuItem>
-                  <MenuItem value="mempool">{t.mempool}</MenuItem>
-                </Select>
-              </FormControl>
-            </Tooltip>
+              </Tooltip>
+              <Select
+                value={apiSource}
+                onChange={(e) => onApiSourceChange(e.target.value)}
+                label={t.apiSource}
+              >
+                <MenuItem value="local">{t.local}</MenuItem>
+                <MenuItem value="blockstream">{t.blockstream}</MenuItem>
+                <MenuItem value="mempool">{t.mempool}</MenuItem>
+              </Select>
+            </FormControl>
           </Grid>
 
           <Grid item xs={12} md={2}>

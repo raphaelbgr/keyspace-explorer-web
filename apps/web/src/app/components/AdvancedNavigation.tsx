@@ -22,6 +22,7 @@ import {
   Edit as EditIcon
 } from '@mui/icons-material';
 import { useTranslation } from '../translations';
+import { useNavigationStore } from '../store/navigationStore';
 
 interface AdvancedNavigationProps {
   currentPage: number;
@@ -40,11 +41,23 @@ const AdvancedNavigation = ({
   keysPerPage,
   onKeysPerPageChange
 }: AdvancedNavigationProps) => {
+  const t = useTranslation();
+  const { getLastPageNumber } = useNavigationStore();
   const [customPage, setCustomPage] = useState('');
   const [customJump, setCustomJump] = useState('');
-  const t = useTranslation();
-
-  const quickJumpPages = [5, 10, 35, 50, 75, 100, 250, 500, 1000, 2500, 5000, 10000, 50000, 100000, 250000, 500000, 1000000];
+  
+  // Debug logging
+  console.log('AdvancedNavigation render:', { t, hasT: !!t, firstPage: t?.firstPage });
+  
+  // Ensure t is defined with fallbacks
+  const translations = t || {
+    firstPage: 'First Page',
+    lastPage: 'Last Page',
+    previousPage: 'Previous Page',
+    nextPage: 'Next Page'
+  };
+  
+  const quickJumpPages = [10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000];
 
   const handleCustomPageSubmit = useCallback(() => {
     const page = parseInt(customPage);
@@ -62,7 +75,7 @@ const AdvancedNavigation = ({
         onPageChange(newPage.toString());
       }
     }
-    setCustomJump('');
+    // Don't clear the input - keep the last value
   }, [customJump, currentPage, totalPages, onPageChange]);
 
   const handleQuickJump = useCallback((jump: number) => {
@@ -87,7 +100,7 @@ const AdvancedNavigation = ({
       
       {/* Basic Navigation */}
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 3, gap: 1 }}>
-        <Tooltip title={t.firstPage} arrow>
+        <Tooltip title={translations.firstPage} arrow>
           <IconButton
             onClick={() => onPageChange('1')}
             disabled={currentPage === 1}
@@ -97,7 +110,7 @@ const AdvancedNavigation = ({
           </IconButton>
         </Tooltip>
         
-        <Tooltip title={t.previousPage} arrow>
+        <Tooltip title={translations.previousPage} arrow>
           <IconButton
             onClick={() => onPageChange((currentPage - 1).toString())}
             disabled={currentPage === 1}
@@ -113,7 +126,7 @@ const AdvancedNavigation = ({
           variant="outlined"
         />
         
-        <Tooltip title={t.nextPage} arrow>
+        <Tooltip title={translations.nextPage} arrow>
           <IconButton
             onClick={() => onPageChange((currentPage + 1).toString())}
             disabled={currentPage === totalPages}
@@ -123,9 +136,9 @@ const AdvancedNavigation = ({
           </IconButton>
         </Tooltip>
         
-        <Tooltip title={t.lastPage} arrow>
+        <Tooltip title={translations.lastPage} arrow>
           <IconButton
-            onClick={() => onPageChange(totalPages.toString())}
+            onClick={() => onPageChange(getLastPageNumber())}
             disabled={currentPage === totalPages}
             size="small"
           >
@@ -156,7 +169,14 @@ const AdvancedNavigation = ({
               value={customPage}
               onChange={(e) => setCustomPage(e.target.value)}
               type="number"
-              sx={{ flexGrow: 1 }}
+              sx={{ 
+                flexGrow: 1,
+                minWidth: '200px',
+                '& .MuiInputBase-input': {
+                  fontSize: '14px',
+                  padding: '8px 12px',
+                }
+              }}
             />
             <Button
               variant="contained"
@@ -250,7 +270,7 @@ const AdvancedNavigation = ({
           Keys per Page:
         </Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-          {[10, 25, 45, 50, 100, 250, 500].map((count) => (
+          {[10, 25, 45, 50, 100, 250, 500, 1000, 2500, 5000, 10000].map((count) => (
             <Tooltip key={count} title={`Show ${count} keys per page`} arrow>
               <Button
                 size="small"

@@ -38,6 +38,7 @@ const BrazilFlag = () => (
     <path d="M12 8L8 4L12 0L16 4L12 8Z" fill="#FFDF00"/>
     <circle cx="12" cy="8" r="3" fill="#002776"/>
     <path d="M12 6L10.5 7.5L12 9L13.5 7.5L12 6Z" fill="white"/>
+    <path d="M12 7L11 8L12 9L13 8L12 7Z" fill="white"/>
   </svg>
 );
 

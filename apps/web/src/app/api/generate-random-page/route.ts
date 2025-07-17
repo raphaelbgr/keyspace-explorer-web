@@ -1,30 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { KeyGenerationService } from '../../../lib/services/KeyGenerationService';
+import '../../../lib/ecc-init'; // Import ECC initialization
 
 export async function POST(request: NextRequest) {
   try {
-    const keyService = new KeyGenerationService();
+    const { KeyGenerationService } = await import('../../../lib/services/KeyGenerationService');
+    const service = new KeyGenerationService();
     
-    // Generate a random page number using a robust random generator
-    const randomPage = keyService.generateSecureRandomPage();
+    const randomPage = service.generateSecureRandomPage();
     
-    // Generate the page data
-    const pageData = await keyService.generatePage(randomPage);
-    
-    return NextResponse.json({
-      pageNumber: pageData.pageNumber.toString(),
-      keys: pageData.keys.map(key => ({
-        ...key,
-        pageNumber: key.pageNumber.toString(), // Convert BigInt to string
-      })),
-      totalPageBalance: pageData.totalPageBalance,
-      generatedAt: pageData.generatedAt.toISOString(),
-      balancesFetched: pageData.balancesFetched,
+    // Convert BigInt to string for JSON serialization
+    return NextResponse.json({ 
+      randomPage: randomPage.toString() 
     });
   } catch (error) {
     console.error('Error generating random page:', error);
     return NextResponse.json(
-      { error: 'Failed to generate random page' },
+      { error: 'Failed to generate random page', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
