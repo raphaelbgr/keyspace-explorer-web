@@ -39,6 +39,7 @@ import { useThemeStore } from './store/themeStore';
 import ThemeToggleClient from './components/ThemeToggleClient';
 import ControlPanel from './components/ControlPanel';
 import UltraOptimizedDashboard from './components/UltraOptimizedDashboard';
+import BalanceStatus from './components/BalanceStatus';
 
 interface PageData {
   pageNumber: string;
@@ -84,6 +85,8 @@ export default function Dashboard() {
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('table');
   const [keysPerPage, setKeysPerPage] = useState(45);
   const [currentKeysPage, setCurrentKeysPage] = useState(1);
+  const [lastChecked, setLastChecked] = useState<string | null>(null);
+  const [checkedAddresses, setCheckedAddresses] = useState(0);
   
   // Performance optimizations
   const debouncedCurrentPage = useDebounce(currentPage, 300);
@@ -181,6 +184,7 @@ export default function Dashboard() {
     if (!pageData) return;
     
     setLoading(true);
+    setCheckedAddresses(0);
     try {
       const addresses = pageData.keys.flatMap(key => Object.values(key.addresses));
       const response = await fetch('/api/balances', {
@@ -193,8 +197,51 @@ export default function Dashboard() {
         throw new Error('Failed to fetch balances');
       }
 
-      const { balances } = await response.json();
-      setNotification({ message: 'Balances fetched successfully!', type: 'success' });
+      const { balances, source, totalAddresses, checkedAt } = await response.json();
+      
+      // Update page data with real balances
+      const updatedKeys = pageData.keys.map(key => {
+        const keyBalances = {
+          p2pkh_compressed: 0,
+          p2pkh_uncompressed: 0,
+          p2wpkh: 0,
+          p2sh_p2wpkh: 0,
+          p2tr: 0,
+        };
+        
+        // Find balances for this key's addresses
+        Object.entries(key.addresses).forEach(([type, address]) => {
+          const balanceData = balances.find((b: { address: string; balance: number }) => b.address === address);
+          if (balanceData) {
+            keyBalances[type as keyof typeof keyBalances] = balanceData.balance;
+          }
+        });
+        
+        const totalBalance = Object.values(keyBalances).reduce((sum, balance) => sum + balance, 0);
+        
+        return {
+          ...key,
+          balances: keyBalances,
+          totalBalance,
+        };
+      });
+      
+      const totalPageBalance = updatedKeys.reduce((sum, key) => sum + key.totalBalance, 0);
+      
+      setPageData({
+        ...pageData,
+        keys: updatedKeys,
+        totalPageBalance,
+        balancesFetched: true,
+      });
+      
+      setLastChecked(checkedAt);
+      setCheckedAddresses(totalAddresses);
+      
+      setNotification({ 
+        message: `Balances fetched successfully from ${source}! Checked ${totalAddresses} addresses.`, 
+        type: 'success' 
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setNotification({ message: 'Failed to fetch balances', type: 'error' });
@@ -281,6 +328,20 @@ export default function Dashboard() {
           pageData={pageData}
           scanProgress={scanProgress}
         />
+
+        {/* Balance Status */}
+        {pageData && (
+          <BalanceStatus
+            totalBalance={pageData.totalPageBalance}
+            totalAddresses={pageData.keys.length * 5} // 5 addresses per key
+            checkedAddresses={checkedAddresses}
+            lastChecked={lastChecked}
+            isChecking={loading}
+            source={apiSource}
+            onRefresh={handleFetchBalances}
+            hasFunds={pageData.totalPageBalance > 0}
+          />
+        )}
 
         {/* Error Display */}
         {error && (
