@@ -1,0 +1,482 @@
+# Product Requirements Document (PRD)
+# Project: Bitcoin Keyspace Explorer
+
+## 1. Visão Geral
+title: "Bitcoin Keyspace Explorer"
+description: "Ferramenta educacional para explorar e analisar o espaço de chaves Bitcoin, gerando endereços criptograficamente seguros e consultando saldos em tempo real."
+target_audience: "Desenvolvedores, pesquisadores e entusiastas de criptomoedas que desejam entender o funcionamento do Bitcoin e explorar o espaço de chaves."
+goals:
+  - "Identificar endereços Bitcoin com saldos significativos através de varredura automatizada."
+  - "Fornecer insights educacionais sobre a distribuição de chaves e endereços Bitcoin."
+  - "Demonstrar práticas seguras de geração de chaves criptográficas."
+  - "Oferecer interface intuitiva para exploração manual e automatizada do keyspace."
+
+## 2. Requisitos Funcionais
+
+### 2.1 Geração de Chaves e Endereços
+features:
+  - name: "Geração de Páginas"
+    description: "Gera páginas de 45 chaves privadas Bitcoin usando BigInt e WebCrypto API."
+    priority: "Alta"
+    status: "Implementado"
+    
+  - name: "Derivação de Endereços"
+    description: "Deriva todos os formatos de endereço Bitcoin (P2PKH, P2WPKH, P2SH-P2WPKH, P2TR)."
+    priority: "Alta"
+    status: "Implementado"
+    
+  - name: "Navegação por Páginas"
+    description: "Permite navegar diretamente para páginas específicas do keyspace."
+    priority: "Média"
+    status: "Implementado"
+
+### 2.2 Consulta de Saldos
+features:
+  - name: "API Blockstream"
+    description: "Consulta saldos via API pública do Blockstream com rate limiting."
+    priority: "Alta"
+    status: "Implementado"
+    
+  - name: "API Local PostgreSQL"
+    description: "Consulta saldos via banco de dados local para desenvolvimento e testes."
+    priority: "Média"
+    status: "Implementado"
+    
+  - name: "Cache de Saldos"
+    description: "Sistema de cache Redis para otimizar consultas repetidas."
+    priority: "Média"
+    status: "Planejado"
+
+### 2.3 Sistema de Varredura Automatizada
+features:
+  - name: "Varredura Aleatória"
+    description: "Inicia varredura em páginas aleatórias do keyspace."
+    priority: "Alta"
+    status: "Implementado"
+    
+  - name: "Varredura Sequencial"
+    description: "Varredura sequencial (próximo/anterior) através do keyspace."
+    priority: "Alta"
+    status: "Implementado"
+    
+  - name: "Controle de Sessões"
+    description: "Gerencia múltiplas sessões de varredura simultâneas."
+    priority: "Média"
+    status: "Implementado"
+    
+  - name: "Parada Inteligente"
+    description: "Para automaticamente quando encontra saldos significativos."
+    priority: "Alta"
+    status: "Implementado"
+
+### 2.4 Notificações
+features:
+  - name: "Telegram Notifications"
+    description: "Envia notificações via Telegram quando encontra fundos."
+    priority: "Alta"
+    status: "Implementado"
+    
+  - name: "Formatação de Mensagens"
+    description: "Mensagens detalhadas com informações da descoberta."
+    priority: "Média"
+    status: "Implementado"
+
+### 2.5 Interface do Usuário
+features:
+  - name: "Dashboard Principal"
+    description: "Interface React com Material-UI para exploração do keyspace."
+    priority: "Alta"
+    status: "Implementado"
+    
+  - name: "Controles de Varredura"
+    description: "Botões para iniciar/parar varredura com diferentes modos."
+    priority: "Alta"
+    status: "Implementado"
+    
+  - name: "Tabela de Chaves"
+    description: "Exibe 45 chaves por página com saldos em tempo real."
+    priority: "Alta"
+    status: "Implementado"
+    
+  - name: "Resumo de Saldos"
+    description: "Mostra saldo total da página e estatísticas."
+    priority: "Média"
+    status: "Implementado"
+
+## 3. Requisitos Não-Funcionais
+
+### 3.1 Performance
+non_functional:
+  - performance: "Processar 1.000 endereços por minuto durante varredura."
+  - response_time: "Tempo de resposta < 2s para geração de páginas."
+  - balance_query: "Tempo de resposta < 5s para consultas de saldo."
+  - concurrent_sessions: "Suportar múltiplas sessões de varredura simultâneas."
+
+### 3.2 Segurança
+non_functional:
+  - key_security: "Nenhuma chave privada armazenada ou logada."
+  - input_validation: "Validação rigorosa de todas as entradas do usuário."
+  - rate_limiting: "Rate limiting de 10 requests/min para varredura, 30/min para consultas."
+  - csp_headers: "Content Security Policy configurado para APIs externas."
+
+### 3.3 Escalabilidade
+non_functional:
+  - database_scaling: "PostgreSQL com connection pooling e índices otimizados."
+  - cache_scaling: "Redis para cache de saldos com TTL de 1 hora."
+  - api_scaling: "Vercel Edge Functions com distribuição global."
+  - cdn_scaling: "CDN global via Vercel Edge Network."
+
+### 3.4 Confiabilidade
+non_functional:
+  - uptime: "99.9% uptime para funcionalidades críticas."
+  - error_handling: "Tratamento robusto de erros com fallbacks."
+  - retry_logic: "Lógica de retry com backoff exponencial para APIs externas."
+  - monitoring: "Monitoramento via Vercel Analytics e Sentry."
+
+## 4. Arquitetura Técnica
+
+### 4.1 Stack Tecnológico
+tech_stack:
+  frontend:
+    - "React 18+ com TypeScript"
+    - "Material-UI (MUI) 5.0+"
+    - "Zustand para state management"
+    - "Tailwind CSS para estilização"
+    
+  backend:
+    - "Next.js API Routes (Vercel Functions)"
+    - "TypeScript 5.0+"
+    - "PostgreSQL 15+ (local)"
+    - "Redis 7.0+ (cache)"
+    
+  infrastructure:
+    - "Vercel (deploy e CDN)"
+    - "Supabase (banco de dados)"
+    - "Telegram Bot API"
+    - "Blockstream API"
+
+### 4.2 APIs Externas
+external_apis:
+  - name: "Blockstream API"
+    purpose: "Consulta de saldos Bitcoin"
+    base_url: "https://blockstream.info/api"
+    rate_limit: "1 request/segundo (self-imposed)"
+    
+  - name: "Telegram Bot API"
+    purpose: "Notificações de descobertas"
+    base_url: "https://api.telegram.org/bot{token}"
+    rate_limit: "30 mensagens/segundo"
+
+### 4.3 Banco de Dados
+database_schema:
+  tables:
+    - name: "balance_cache"
+      purpose: "Cache de saldos consultados"
+      columns: ["address", "balance", "cached_at", "source"]
+      
+    - name: "wallets_btc"
+      purpose: "Dados de teste local"
+      columns: ["address", "balance", "last_updated"]
+      
+    - name: "scan_sessions"
+      purpose: "Controle de sessões de varredura"
+      columns: ["session_id", "mode", "start_page", "current_page", "is_active"]
+
+## 5. Funcionalidades do Scanner
+
+### 5.1 Modos de Varredura
+scan_modes:
+  - name: "Random"
+    description: "Seleciona páginas aleatórias do keyspace."
+    implementation: "Usa crypto-secure random para seleção."
+    
+  - name: "Next"
+    description: "Varredura sequencial para frente."
+    implementation: "Incrementa pageNumber sequencialmente."
+    
+  - name: "Previous"
+    description: "Varredura sequencial para trás."
+    implementation: "Decrementa pageNumber sequencialmente."
+
+### 5.2 Lógica de Processamento
+scan_logic:
+  - step: "Geração de Página"
+    description: "Gera 45 chaves privadas para a página atual."
+    
+  - step: "Derivação de Endereços"
+    description: "Deriva todos os formatos de endereço para cada chave."
+    
+  - step: "Consulta de Saldos"
+    description: "Consulta saldos via Blockstream API ou local PostgreSQL."
+    
+  - step: "Cálculo de Totais"
+    description: "Calcula saldo total da página e identifica chaves com fundos."
+    
+  - step: "Notificação"
+    description: "Envia notificação Telegram se encontrar saldos > 0."
+    
+  - step: "Continuação/Parada"
+    description: "Continua para próxima página ou para se encontrar fundos."
+
+### 5.3 Validação de Endereços
+address_validation:
+  - validation: "Verificação de formato Bitcoin válido"
+    implementation: "Regex patterns para P2PKH, P2WPKH, P2SH, P2TR"
+    
+  - validation: "Checksum verification"
+    implementation: "Validação de checksum para endereços legacy"
+    
+  - validation: "Bech32 validation"
+    implementation: "Validação de endereços Bech32 (SegWit)"
+
+## 6. Métricas de Sucesso
+
+### 6.1 Métricas Técnicas
+technical_metrics:
+  - metric: "Taxa de endereços com saldo > 0"
+    target: "Monitoramento contínuo"
+    measurement: "Porcentagem de endereços com saldo por página"
+    
+  - metric: "Tempo médio de varredura por lote"
+    target: "< 5 segundos por página"
+    measurement: "Tempo total para processar 45 endereços"
+    
+  - metric: "Uptime da API Blockstream"
+    target: "> 99% disponibilidade"
+    measurement: "Taxa de sucesso das consultas"
+    
+  - metric: "Performance de cache"
+    target: "> 80% hit rate"
+    measurement: "Porcentagem de consultas servidas do cache"
+
+### 6.2 Métricas de Negócio
+business_metrics:
+  - metric: "Usuários ativos diários"
+    target: "Crescimento contínuo"
+    measurement: "Usuários únicos por dia"
+    
+  - metric: "Sessões de varredura completadas"
+    target: "Aumento de 20% mensal"
+    measurement: "Número de varreduras iniciadas e completadas"
+    
+  - metric: "Descobertas de fundos"
+    target: "Monitoramento para fins educacionais"
+    measurement: "Número de notificações enviadas"
+
+## 7. Riscos e Dependências
+
+### 7.1 Riscos Técnicos
+technical_risks:
+  - risk: "Limitações da API Blockstream"
+    impact: "Alto"
+    mitigation: "Rate limiting, fallback para banco local, cache Redis"
+    
+  - risk: "Geração de chaves duplicadas"
+    impact: "Médio"
+    mitigation: "Crypto-secure random, validação de unicidade"
+    
+  - risk: "Overflow de BigInt"
+    impact: "Médio"
+    mitigation: "Validação de limites, tratamento de erros"
+
+### 7.2 Riscos de Infraestrutura
+infrastructure_risks:
+  - risk: "Limitação de rate do Telegram"
+    impact: "Baixo"
+    mitigation: "Queue system, retry logic"
+    
+  - risk: "Limitação de recursos Vercel"
+    impact: "Médio"
+    mitigation: "Otimização de código, monitoramento de uso"
+
+### 7.3 Dependências Externas
+external_dependencies:
+  - dependency: "Blockstream API"
+    criticality: "Alta"
+    fallback: "Banco de dados local"
+    
+  - dependency: "Telegram Bot API"
+    criticality: "Baixa"
+    fallback: "Logging local"
+    
+  - dependency: "PostgreSQL Database"
+    criticality: "Média"
+    fallback: "In-memory cache"
+
+## 8. Cronograma
+
+### 8.1 Marcos Principais
+deadline: "2025-07-17"
+milestones:
+  - name: "MVP (Minimum Viable Product)"
+    date: "2024-12-31"
+    description: "Geração de páginas, consulta básica de saldos, interface simples"
+    status: "Concluído"
+    
+  - name: "Sistema de Varredura"
+    date: "2025-01-15"
+    description: "Varredura automatizada, notificações Telegram, controle de sessões"
+    status: "Concluído"
+    
+  - name: "Otimizações de Performance"
+    date: "2025-02-28"
+    description: "Cache Redis, otimização de consultas, melhorias de UI"
+    status: "Em andamento"
+    
+  - name: "Lançamento Beta"
+    date: "2025-03-15"
+    description: "Testes com usuários, refinamentos baseados em feedback"
+    status: "Planejado"
+    
+  - name: "Versão Final"
+    date: "2025-07-17"
+    description: "Lançamento público com todas as funcionalidades"
+    status: "Planejado"
+
+### 8.2 Sprints Atuais
+current_sprints:
+  - sprint: "Sprint 1 - Correções de Erro"
+    duration: "1-2 semanas"
+    focus: "Corrigir erros de validação de endereços e Turbopack"
+    tasks:
+      - "Melhorar validação de endereços Bitcoin"
+      - "Corrigir erros de Turbopack"
+      - "Otimizar tratamento de erros da API Blockstream"
+      
+  - sprint: "Sprint 2 - Melhorias de Performance"
+    duration: "2-3 semanas"
+    focus: "Implementar cache Redis e otimizações"
+    tasks:
+      - "Implementar cache Redis para saldos"
+      - "Otimizar consultas em lote"
+      - "Melhorar rate limiting"
+
+## 9. Equipe e Responsabilidades
+
+### 9.1 Estrutura da Equipe
+team:
+  - role: "Desenvolvedor Fullstack"
+    name: "Equipe Atual"
+    responsibilities:
+      - "Desenvolvimento frontend React"
+      - "Implementação de APIs Next.js"
+      - "Integração com APIs externas"
+      - "Otimização de performance"
+      
+  - role: "DevOps/Infraestrutura"
+    name: "Vercel + Supabase"
+    responsibilities:
+      - "Deploy automatizado"
+      - "Monitoramento e logs"
+      - "Configuração de banco de dados"
+      
+  - role: "QA/Testes"
+    name: "Equipe Atual"
+    responsibilities:
+      - "Testes unitários e integração"
+      - "Testes E2E com Playwright"
+      - "Validação de funcionalidades"
+
+## 10. Critérios de Aceitação
+
+### 10.1 Funcionalidades Críticas
+acceptance_criteria:
+  - feature: "Geração de Páginas"
+    criteria:
+      - "Gera exatamente 45 chaves por página"
+      - "Todas as chaves são criptograficamente seguras"
+      - "Deriva todos os formatos de endereço corretamente"
+      
+  - feature: "Consulta de Saldos"
+    criteria:
+      - "Consulta saldos via Blockstream API"
+      - "Fallback para banco local em caso de erro"
+      - "Cache de resultados para otimização"
+      
+  - feature: "Varredura Automatizada"
+    criteria:
+      - "Inicia varredura nos modos random/next/previous"
+      - "Para automaticamente ao encontrar saldos > 0"
+      - "Envia notificação Telegram com detalhes"
+      
+  - feature: "Interface do Usuário"
+    criteria:
+      - "Exibe 45 chaves por página com saldos"
+      - "Controles para iniciar/parar varredura"
+      - "Resumo de saldos em tempo real"
+
+### 10.2 Critérios de Performance
+performance_criteria:
+  - metric: "Tempo de geração de página"
+    target: "< 2 segundos"
+    
+  - metric: "Tempo de consulta de saldos"
+    target: "< 5 segundos para 45 endereços"
+    
+  - metric: "Taxa de erro da API"
+    target: "< 5% de erros"
+    
+  - metric: "Disponibilidade"
+    target: "> 99% uptime"
+
+## 11. Documentação e Recursos
+
+### 11.1 Documentação Técnica
+documentation:
+  - name: "Architecture Document"
+    location: "docs/architecture.md"
+    status: "Completo"
+    
+  - name: "API Documentation"
+    location: "docs/api.md"
+    status: "Em desenvolvimento"
+    
+  - name: "Deployment Guide"
+    location: "docs/deployment.md"
+    status: "Planejado"
+
+### 11.2 Recursos de Desenvolvimento
+development_resources:
+  - name: "BMad Master Agent"
+    location: "docs/bmad-master.md"
+    purpose: "Automação de desenvolvimento e documentação"
+    
+  - name: "PRD Template"
+    location: "docs/prd-tmpl.yaml"
+    purpose: "Template para futuros PRDs"
+
+## 12. Próximos Passos
+
+### 12.1 Ações Imediatas
+immediate_actions:
+  - action: "Corrigir erros de validação de endereços"
+    priority: "Alta"
+    timeline: "1-2 dias"
+    
+  - action: "Resolver problemas do Turbopack"
+    priority: "Alta"
+    timeline: "1 semana"
+    
+  - action: "Implementar cache Redis"
+    priority: "Média"
+    timeline: "2-3 semanas"
+
+### 12.2 Roadmap Futuro
+future_roadmap:
+  - phase: "Fase 1 - Estabilização"
+    duration: "1-2 meses"
+    focus: "Correção de bugs, otimizações de performance"
+    
+  - phase: "Fase 2 - Expansão"
+    duration: "2-3 meses"
+    focus: "Novas funcionalidades, melhorias de UI"
+    
+  - phase: "Fase 3 - Lançamento"
+    duration: "1 mês"
+    focus: "Preparação para lançamento público"
+
+---
+
+**Status do PRD:** Ativo
+**Última Atualização:** 2025-01-16
+**Próxima Revisão:** 2025-02-01 
