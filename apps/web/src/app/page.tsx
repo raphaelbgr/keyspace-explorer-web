@@ -104,8 +104,7 @@ export default function Dashboard() {
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('table');
   const [keysPerPage, setKeysPerPage] = useState(45);
   const [currentKeysPage, setCurrentKeysPage] = useState(1);
-  const [lastChecked, setLastChecked] = useState<string | null>(null);
-  const [checkedAddresses, setCheckedAddresses] = useState(0);
+
   
   // Performance optimizations
   const debouncedCurrentPage = useDebounce(currentPage, 300);
@@ -273,95 +272,7 @@ export default function Dashboard() {
     console.log('Scanner functionality moved to ScannerCard component');
   };
 
-  const handleFetchBalances = async () => {
-    if (!pageData) return;
-    
-    setLoading(true);
-    setCheckedAddresses(0);
-    try {
-      const addresses = pageData.keys.flatMap(key => Object.values(key.addresses));
-      const response = await fetch('/api/balances', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addresses, source: apiSource }),
-      });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch balances');
-      }
-
-      const { balances, source, totalAddresses, checkedAt } = await response.json();
-      
-      // Update page data with real balances
-      const updatedKeys = pageData.keys.map(key => {
-        const keyBalances = {
-          p2pkh_compressed: 0,
-          p2pkh_uncompressed: 0,
-          p2wpkh: 0,
-          p2sh_p2wpkh: 0,
-          p2tr: 0,
-        };
-        
-        // Find balances for this key's addresses
-        Object.entries(key.addresses).forEach(([type, address]) => {
-          const balanceData = balances.find((b: { address: string; balance: number }) => b.address === address);
-          if (balanceData) {
-            keyBalances[type as keyof typeof keyBalances] = balanceData.balance;
-          }
-        });
-        
-        const totalBalance = Object.values(keyBalances).reduce((sum, balance) => sum + balance, 0);
-        
-        // Check for balances and notify if found
-        Object.entries(key.addresses).forEach(async ([type, address]) => {
-          const balanceData = balances.find((b: { address: string; balance: number }) => b.address === address);
-          if (balanceData && balanceData.balance > 0) {
-            // Send notification asynchronously
-            fetch('/api/notify-match', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                privateKey: key.privateKey,
-                address: address,
-                balance: balanceData.balance,
-                addressType: type
-              }),
-            }).catch(error => {
-              console.error('Failed to send notification:', error);
-            });
-          }
-        });
-        
-        return {
-          ...key,
-          balances: keyBalances,
-          totalBalance,
-        };
-      });
-      
-      const totalPageBalance = updatedKeys.reduce((sum, key) => sum + key.totalBalance, 0);
-      
-      setPageData({
-        ...pageData,
-        keys: updatedKeys,
-        totalPageBalance,
-        balancesFetched: true,
-      });
-      
-      setLastChecked(checkedAt);
-      setCheckedAddresses(totalAddresses);
-      
-      setNotification({ 
-        message: formatTranslation(t.balancesFetched, { source, count: totalAddresses }), 
-        type: 'success' 
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      setNotification({ message: t.failedToFetch, type: 'error' });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const displayedKeys = useMemo(() => {
     if (!pageData) return [];
@@ -485,13 +396,12 @@ export default function Dashboard() {
           currentPage={currentPage}
           onPageChange={handlePageChange}
           onGeneratePage={() => handleGeneratePage()}
-          onFetchBalances={handleFetchBalances}
           onToggleDisplayMode={handleToggleDisplayMode}
           apiSource={apiSource}
           onApiSourceChange={handleApiSourceChange}
           displayMode={displayMode}
           loading={loading}
-          lastChecked={lastChecked}
+          lastChecked={pageData?.generatedAt || null}
           hasFunds={pageData?.totalPageBalance ? pageData.totalPageBalance > 0 : false}
         />
 
@@ -522,16 +432,16 @@ export default function Dashboard() {
           onDirectPageChange={handleDirectPageChange}
         />
 
-        {/* Balance Status */}
+        {/* Balance Status - Now shows real scan data */}
         {pageData && (
           <BalanceStatus
             totalBalance={pageData.totalPageBalance}
             totalAddresses={pageData.keys.length * 5} // 5 addresses per key
-            checkedAddresses={checkedAddresses}
-            lastChecked={lastChecked}
+            checkedAddresses={pageData.keys.length * 5} // All addresses are checked when page is generated
+            lastChecked={pageData.generatedAt}
             isChecking={loading}
-            source={apiSource}
-            onRefresh={handleFetchBalances}
+            source="Scanner"
+            onRefresh={() => handleGeneratePage()}
             hasFunds={pageData.totalPageBalance > 0}
           />
         )}

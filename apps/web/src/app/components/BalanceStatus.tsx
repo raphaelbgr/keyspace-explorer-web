@@ -58,7 +58,7 @@ const BalanceStatus = ({
               color="primary" 
               size="small"
             />
-            <Tooltip title="Refresh balances">
+            <Tooltip title="Regenerate current page">
               <IconButton 
                 size="small" 
                 onClick={onRefresh}
@@ -98,28 +98,28 @@ const BalanceStatus = ({
           <Grid item xs={12} md={6}>
             <Box sx={{ mb: 2 }}>
               <Typography variant="subtitle2" gutterBottom>
-                Address Check Progress
+                Page Status
               </Typography>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Typography variant="body2">
-                  {checkedAddresses} / {totalAddresses} addresses
+                  {totalAddresses} addresses generated
                 </Typography>
                 <Typography variant="body2">
-                  {progress.toFixed(1)}%
+                  Complete
                 </Typography>
               </Box>
               <LinearProgress 
                 variant="determinate" 
-                value={progress} 
+                value={100} 
                 sx={{ height: 8, borderRadius: 4 }}
               />
             </Box>
 
-            {hasChecked && lastChecked && (
+            {lastChecked && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <ScheduleIcon fontSize="small" color="action" />
                 <Typography variant="body2" color="text.secondary">
-                  Last checked: {new Date(lastChecked).toLocaleString()}
+                  Generated: {new Date(lastChecked).toLocaleString()}
                 </Typography>
               </Box>
             )}
@@ -130,19 +130,19 @@ const BalanceStatus = ({
                 icon={<RefreshIcon />}
                 sx={{ mt: 2 }}
               >
-                Checking balances from {source}...
+                Generating page data...
               </Alert>
             )}
           </Grid>
         </Grid>
 
-        {!hasChecked && !isChecking && (
+        {!lastChecked && !isChecking && (
           <Alert 
-            severity="warning" 
+            severity="info" 
             icon={<WarningIcon />}
             sx={{ mt: 2 }}
           >
-            No balances checked yet. Click "Fetch Balances" to start checking.
+            Ready to generate page data. Use the scanner or navigate to explore the keyspace.
           </Alert>
         )}
       </CardContent>

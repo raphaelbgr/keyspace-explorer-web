@@ -29,7 +29,6 @@ interface ControlPanelProps {
   currentPage: string;
   onPageChange: (page: string) => void;
   onGeneratePage: () => void;
-  onFetchBalances: () => void;
   onToggleDisplayMode: () => void;
   apiSource: string;
   onApiSourceChange: (source: string) => void;
@@ -43,7 +42,6 @@ const ControlPanel = memo<ControlPanelProps>(({
   currentPage,
   onPageChange,
   onGeneratePage,
-  onFetchBalances,
   onToggleDisplayMode,
   apiSource,
   onApiSourceChange,
@@ -121,36 +119,6 @@ const ControlPanel = memo<ControlPanelProps>(({
           </Grid>
 
           <Grid item xs={12} md={2}>
-            <Tooltip title={t.fetchBalances} arrow>
-              {(loading || !lastChecked) ? (
-                <span>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    onClick={onFetchBalances}
-                    disabled={loading || !lastChecked}
-                    startIcon={<BalanceIcon />}
-                    size="small"
-                  >
-                    {t.fetchBalances}
-                  </Button>
-                </span>
-              ) : (
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  onClick={onFetchBalances}
-                  disabled={loading || !lastChecked}
-                  startIcon={<BalanceIcon />}
-                  size="small"
-                >
-                  {t.fetchBalances}
-                </Button>
-              )}
-            </Tooltip>
-          </Grid>
-
-          <Grid item xs={12} md={2}>
             <Tooltip title={hasFunds ? "Funds found on this page" : "No funds found on this page"} arrow>
               {!lastChecked ? (
                 <span>
@@ -162,7 +130,7 @@ const ControlPanel = memo<ControlPanelProps>(({
                     startIcon={hasFunds ? <PlayIcon /> : <StopIcon />}
                     size="small"
                   >
-                    {hasFunds ? t.fundsFound : t.noFunds}
+                    {hasFunds ? t.funds : "No Funds"}
                   </Button>
                 </span>
               ) : (
@@ -174,7 +142,7 @@ const ControlPanel = memo<ControlPanelProps>(({
                   startIcon={hasFunds ? <PlayIcon /> : <StopIcon />}
                   size="small"
                 >
-                  {hasFunds ? t.fundsFound : t.noFunds}
+                  {hasFunds ? t.funds : "No Funds"}
                 </Button>
               )}
             </Tooltip>
