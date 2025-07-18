@@ -186,27 +186,31 @@ const AdvancedNavigation = ({
         {/* Basic Navigation */}
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 3, gap: 1 }}>
           <Tooltip title={translations.firstPage} arrow>
-            <IconButton
-              onClick={() => onPageChange('1')}
-              disabled={currentPage === 1}
-              size="small"
-            >
-              <ChevronLeft />
-            </IconButton>
+            <span>
+              <IconButton
+                onClick={() => onPageChange('1')}
+                disabled={currentPage === 1}
+                size="small"
+              >
+                <ChevronLeft />
+              </IconButton>
+            </span>
           </Tooltip>
           
           <Tooltip title={translations.previousPage} arrow>
-            <IconButton
-              onClick={() => {
-                const currentPageDecimal = parsePageNumberToDecimal(currentPage);
-                const newPage = currentPageDecimal.minus(1);
-                onPageChange(newPage.toFixed(0));
-              }}
-              disabled={parsePageNumberToDecimal(currentPage).lte(1)}
-              size="small"
-            >
-              <ChevronLeft />
-            </IconButton>
+            <span>
+              <IconButton
+                onClick={() => {
+                  const currentPageDecimal = parsePageNumberToDecimal(currentPage);
+                  const newPage = currentPageDecimal.minus(1);
+                  onPageChange(newPage.toFixed(0));
+                }}
+                disabled={parsePageNumberToDecimal(currentPage).lte(1)}
+                size="small"
+              >
+                <ChevronLeft />
+              </IconButton>
+            </span>
           </Tooltip>
           
           <Chip 
@@ -216,27 +220,31 @@ const AdvancedNavigation = ({
           />
           
           <Tooltip title={translations.nextPage} arrow>
-            <IconButton
-              onClick={() => {
-                const currentPageDecimal = parsePageNumberToDecimal(currentPage);
-                const newPage = currentPageDecimal.plus(1);
-                onPageChange(newPage.toFixed(0));
-              }}
-              disabled={parsePageNumberToDecimal(currentPage).gte(totalPages)}
-              size="small"
-            >
-              <ChevronRight />
-            </IconButton>
+            <span>
+              <IconButton
+                onClick={() => {
+                  const currentPageDecimal = parsePageNumberToDecimal(currentPage);
+                  const newPage = currentPageDecimal.plus(1);
+                  onPageChange(newPage.toFixed(0));
+                }}
+                disabled={parsePageNumberToDecimal(currentPage).gte(totalPages)}
+                size="small"
+              >
+                <ChevronRight />
+              </IconButton>
+            </span>
           </Tooltip>
           
           <Tooltip title={translations.lastPage} arrow>
-            <IconButton
-              onClick={() => onPageChange(getLastPageNumber())}
-              disabled={currentPage === totalPages}
-              size="small"
-            >
-              <ChevronRight />
-            </IconButton>
+            <span>
+              <IconButton
+                onClick={() => onPageChange(getLastPageNumber())}
+                disabled={currentPage === totalPages}
+                size="small"
+              >
+                <ChevronRight />
+              </IconButton>
+            </span>
           </Tooltip>
           
           <Tooltip title="Go to Random Page" arrow>
@@ -293,22 +301,26 @@ const AdvancedNavigation = ({
                 sx={{ flexGrow: 1 }}
               />
               <Tooltip title="Jump Backward" arrow>
-                <IconButton
-                  onClick={() => handleCustomJump('backward')}
-                  disabled={!customJump || parseInt(customJump) <= 0}
-                  size="small"
-                >
-                  <ChevronLeft />
-                </IconButton>
+                <span>
+                  <IconButton
+                    onClick={() => handleCustomJump('backward')}
+                    disabled={!customJump || parseInt(customJump) <= 0}
+                    size="small"
+                  >
+                    <ChevronLeft />
+                  </IconButton>
+                </span>
               </Tooltip>
               <Tooltip title="Jump Forward" arrow>
-                <IconButton
-                  onClick={() => handleCustomJump('forward')}
-                  disabled={!customJump || parseInt(customJump) <= 0}
-                  size="small"
-                >
-                  <ChevronRight />
-                </IconButton>
+                <span>
+                  <IconButton
+                    onClick={() => handleCustomJump('forward')}
+                    disabled={!customJump || parseInt(customJump) <= 0}
+                    size="small"
+                  >
+                    <ChevronRight />
+                  </IconButton>
+                </span>
               </Tooltip>
             </Box>
           </Grid>

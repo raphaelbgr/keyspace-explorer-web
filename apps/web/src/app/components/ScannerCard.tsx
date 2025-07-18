@@ -77,6 +77,7 @@ export default function ScannerCard({
   const pagesScannedRef = useRef(0);
   const isScanningRef = useRef(false);
   const scanningIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const currentScanPageRef = useRef<string>(currentPage);
 
   // Enhanced scanner store integration
   const {
@@ -93,6 +94,10 @@ export default function ScannerCard({
   useEffect(() => {
     isScanningRef.current = isScanning;
   }, [isScanning]);
+
+  useEffect(() => {
+    currentScanPageRef.current = currentScanPage;
+  }, [currentScanPage]);
 
   // Calculate scanning statistics
   useEffect(() => {
@@ -115,7 +120,7 @@ export default function ScannerCard({
 
   // Generate next page based on navigation mode
   const generateNextPage = useCallback((): string => {
-    const currentPageDecimal = new Decimal(currentScanPage);
+    const currentPageDecimal = new Decimal(currentScanPageRef.current);
     const totalPagesDecimal = new Decimal(totalPages);
 
     switch (autoNavigationMode) {
@@ -136,7 +141,7 @@ export default function ScannerCard({
         const randomPage = Math.floor(randomValue * totalPages) + 1;
         return randomPage.toString();
     }
-  }, [currentScanPage, totalPages, autoNavigationMode]);
+  }, [totalPages, autoNavigationMode]);
 
   // Check if page has any balance > 0
   const hasBalance = useCallback((pageData: any): boolean => {
@@ -176,8 +181,11 @@ export default function ScannerCard({
 
     try {
       const nextPage = generateNextPage();
-      console.log('Generated next page:', nextPage);
+      console.log('Generated next page:', nextPage, 'from current scan page:', currentScanPageRef.current);
+      
+      // Update both state and ref immediately for next iteration
       setCurrentScanPage(nextPage);
+      currentScanPageRef.current = nextPage;
       
       // Call API directly without updating main UI
       console.log('Calling API for page:', nextPage, 'with pageSize:', scanPageSize);
@@ -258,6 +266,7 @@ export default function ScannerCard({
     setPagesScanned(0);
     pagesScannedRef.current = 0;
     setCurrentScanPage(currentPage);
+    currentScanPageRef.current = currentPage;
     setLastFoundBalance(null);
     setScanStats({ totalBalance: 0, pagesPerMinute: 0, elapsedTime: 0 });
     
