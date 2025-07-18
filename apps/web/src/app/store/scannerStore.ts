@@ -6,6 +6,7 @@ export interface ScanConfig {
   maxPages?: number;
   delay: number;
   apiSource: string;
+  startPage?: number;
 }
 
 export interface ScannerState {
@@ -50,6 +51,7 @@ export const useScannerStore = create<ScannerState>((set, get) => ({
     pagesScanned: 0,
     totalBalance: 0,
     isAutoContinuing: false,
+    currentPage: config.startPage || 1, // Start from the specified page or default to 1
   }),
 
   stopScan: () => set({

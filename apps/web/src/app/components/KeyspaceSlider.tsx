@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Box,
   Slider,
@@ -8,21 +8,51 @@ import {
   Paper,
   Tooltip,
   useTheme,
+  TextField,
+  InputAdornment,
+  IconButton
 } from '@mui/material';
 import {
   Timeline as TimelineIcon,
+  ArrowForward as ArrowForwardIcon
 } from '@mui/icons-material';
 import { useTranslation } from '../translations';
+import Decimal from 'decimal.js';
+
+// Helper function to safely parse page numbers (including scientific notation)
+const parsePageNumberToDecimal = (pageStr: string): Decimal => {
+  try {
+    // First try direct Decimal parsing
+    return new Decimal(pageStr);
+  } catch {
+    try {
+      // If that fails, parse as Number first (handles scientific notation)
+      const asNumber = Number(pageStr);
+      if (isNaN(asNumber) || !isFinite(asNumber)) {
+        return new Decimal('1'); // fallback to page 1
+      }
+      // Convert to string and then to Decimal to avoid precision loss
+      return new Decimal(Math.floor(asNumber).toString());
+    } catch {
+      return new Decimal('1'); // fallback to page 1
+    }
+  }
+};
 
 interface KeyspaceSliderProps {
-  currentPage: number;
-  totalPages: number;
+  currentPage: string; // Always treat as string for BigInt safety
+  totalPages: number | bigint | string;
   onPageChange: (page: string) => void;
   disabled?: boolean;
 }
 
+// Slider granularity: Use 10x the total number of pages for enhanced precision
+// This provides 10 sub-steps per page for ultra-fine navigation
+const TOTAL_PAGES = new Decimal('2573157538607026564968244111304175730063056983979442319613448069811514699875');
+const SLIDER_MAX = TOTAL_PAGES.times(10);
+
 export default function KeyspaceSlider({ 
-  currentPage, 
+  currentPage, // string, can be BigInt
   totalPages, 
   onPageChange, 
   disabled = false 
@@ -30,46 +60,120 @@ export default function KeyspaceSlider({
   const theme = useTheme();
   const t = useTranslation();
   const [isDragging, setIsDragging] = useState(false);
-  const [tempValue, setTempValue] = useState(currentPage);
+  const [sliderValue, setSliderValue] = useState(0);
+  const [inputValue, setInputValue] = useState(currentPage);
 
-  // Convert totalPages to number if it's a bigint
-  const totalPagesNum = typeof totalPages === 'bigint' ? Number(totalPages) : totalPages;
+  // Always treat totalPages as Decimal for precision
+  const totalPagesDecimal = new Decimal(totalPages.toString());
+  const currentPageDecimal = parsePageNumberToDecimal(currentPage);
 
-  // Calculate percentage position in keyspace
-  const percentage = totalPagesNum > 0 ? (currentPage / totalPagesNum) * 100 : 0;
+  // Convert currentPage to slider position [0, SLIDER_MAX]
+  const getSliderValueFromPage = useCallback((pageStr: string) => {
+    try {
+      const page = new Decimal(pageStr);
+      // Clamp page to [1, totalPages]
+      const clamped = Decimal.max(1, Decimal.min(page, totalPagesDecimal));
+      // With 10x granularity: slider value = (page number - 1) * 10
+      return clamped.minus(1).times(10).toNumber();
+    } catch {
+      return 0;
+    }
+  }, [totalPagesDecimal]);
+
+  // Convert slider value [0, SLIDER_MAX] to page string
+  const getPageFromSliderValue = useCallback((sliderVal: number) => {
+    // With 10x granularity: page = (slider value / 10) + 1
+    const page = new Decimal(sliderVal).dividedBy(10).plus(1);
+    const clamped = Decimal.max(1, Decimal.min(page, totalPagesDecimal));
+    return clamped.toFixed(0);
+  }, [totalPagesDecimal]);
+
+  // Update slider value when currentPage changes
+  useEffect(() => {
+    if (!isDragging) {
+      setSliderValue(getSliderValueFromPage(currentPage));
+      setInputValue(currentPage);
+    }
+  }, [currentPage, isDragging, getSliderValueFromPage]);
 
   const handleSliderChange = useCallback((event: Event, newValue: number | number[]) => {
     const value = Array.isArray(newValue) ? newValue[0] : newValue;
-    setTempValue(value);
+    setSliderValue(value);
   }, []);
 
   const handleSliderChangeCommitted = useCallback((event: Event | React.SyntheticEvent, newValue: number | number[]) => {
     const value = Array.isArray(newValue) ? newValue[0] : newValue;
     setIsDragging(false);
-    
-    // Only trigger page change if the value actually changed
-    if (value !== currentPage && value >= 1 && value <= totalPagesNum) {
-      onPageChange(value.toString());
+    const pageStr = getPageFromSliderValue(value);
+    if (pageStr !== currentPage) {
+      onPageChange(pageStr);
     }
-  }, [currentPage, totalPagesNum, onPageChange]);
+  }, [currentPage, onPageChange, getPageFromSliderValue]);
 
   const handleSliderChangeStart = useCallback(() => {
     setIsDragging(true);
   }, []);
 
+  // Numeric input for direct page entry
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value.replace(/[^0-9]/g, ''));
+  };
+  const handleInputSubmit = () => {
+    if (!inputValue) return;
+    try {
+      const page = new Decimal(inputValue);
+      if (page.gte(1) && page.lte(totalPagesDecimal)) {
+        onPageChange(page.toFixed(0));
+      }
+    } catch {}
+  };
+
   // Format large numbers for display
-  const formatNumber = (num: number): string => {
-    if (num >= 1000000) {
-      return `${(num / 1000000).toFixed(1)}M`;
-    } else if (num >= 1000) {
-      return `${(num / 1000).toFixed(1)}K`;
+  const formatNumber = (num: string | number | bigint): string => {
+    let numValue: number;
+    try {
+      numValue = typeof num === 'string' ? Number(BigInt(num)) : Number(num);
+    } catch {
+      numValue = 0;
     }
-    return num.toString();
+    if (numValue >= 1e15) {
+      return `${(numValue / 1e15).toFixed(1)}Q`;
+    } else if (numValue >= 1e12) {
+      return `${(numValue / 1e12).toFixed(1)}T`;
+    } else if (numValue >= 1e9) {
+      return `${(numValue / 1e9).toFixed(1)}B`;
+    } else if (numValue >= 1e6) {
+      return `${(numValue / 1e6).toFixed(1)}M`;
+    } else if (numValue >= 1e3) {
+      return `${(numValue / 1e3).toFixed(1)}K`;
+    }
+    return numValue.toString();
   };
 
   // Calculate keyspace position
-  const keyspacePosition = currentPage * 45; // Assuming 45 keys per page
-  const totalKeys = totalPagesNum * 45;
+  const keyspacePosition = (() => {
+    try {
+      return parsePageNumberToDecimal(currentPage).times(45).toFixed(0);
+    } catch {
+      return '0';
+    }
+  })();
+  const totalKeys = (() => {
+    try {
+      return totalPagesDecimal.times(45).toFixed(0);
+    } catch {
+      return '0';
+    }
+  })();
+
+  // Calculate percentage for display
+  const percentage = (() => {
+    try {
+      return currentPageDecimal.minus(1).dividedBy(totalPagesDecimal.minus(1)).times(100).toNumber();
+    } catch {
+      return 0;
+    }
+  })();
 
   return (
     <Paper 
@@ -86,18 +190,20 @@ export default function KeyspaceSlider({
         <Typography variant="h6" component="h3">
           {t.keyspaceNavigation || 'Keyspace Navigation'}
         </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+          (Direct page navigation, full precision)
+        </Typography>
       </Box>
 
       <Box sx={{ mb: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
           <Typography variant="body2" color="text.secondary">
-            Page {formatNumber(currentPage)} of {formatNumber(totalPagesNum)}
+            Page {formatNumber(currentPage)} of {formatNumber(totalPagesDecimal.toFixed(0))}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {percentage.toFixed(2)}% of keyspace
+            {percentage.toFixed(6)}% of keyspace
           </Typography>
         </Box>
-        
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="caption" color="text.secondary">
             Key #{formatNumber(keyspacePosition)} of {formatNumber(totalKeys)}
@@ -105,22 +211,22 @@ export default function KeyspaceSlider({
         </Box>
       </Box>
 
-      <Box sx={{ px: 2 }}>
+      <Box sx={{ px: 2, mb: 2 }}>
         <Tooltip 
-          title={`Drag to navigate to page ${isDragging ? tempValue : currentPage}`}
+          title={`Drag to navigate to page ${isDragging ? sliderValue : formatNumber(currentPage)}`}
           arrow
           open={!!isDragging}
         >
           <Slider
-            value={isDragging ? tempValue : currentPage}
+            value={sliderValue}
             onChange={handleSliderChange}
             onChangeCommitted={handleSliderChangeCommitted}
             onMouseDown={handleSliderChangeStart}
             onTouchStart={handleSliderChangeStart}
-            min={1}
-            max={Math.max(1, totalPagesNum)}
+            min={0}
+            max={Number(SLIDER_MAX)}
             step={1}
-            disabled={disabled || totalPagesNum <= 1}
+            disabled={disabled || totalPagesDecimal.lte(1)}
             sx={{
               '& .MuiSlider-track': {
                 background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
@@ -141,6 +247,30 @@ export default function KeyspaceSlider({
         </Tooltip>
       </Box>
 
+      {/* Direct page input */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+        <TextField
+          label="Go to page"
+          value={inputValue}
+          onChange={handleInputChange}
+          onKeyDown={e => { if (e.key === 'Enter') handleInputSubmit(); }}
+          size="small"
+          sx={{ width: 180 }}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton onClick={handleInputSubmit} size="small">
+                  <ArrowForwardIcon />
+                </IconButton>
+              </InputAdornment>
+            )
+          }}
+        />
+        <Typography variant="caption" color="text.secondary">
+          (1 - {formatNumber(totalPagesDecimal.toFixed(0))})
+        </Typography>
+      </Box>
+
       {/* Quick Navigation Buttons */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
         <Typography variant="caption" color="text.secondary">
@@ -148,9 +278,30 @@ export default function KeyspaceSlider({
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
           {[0.1, 0.25, 0.5, 0.75, 0.9].map((percentage) => {
-            const targetPage = Math.floor(totalPagesNum * percentage);
+            // CRITICAL FIX: Use current slider state, not stale currentPage prop
+            // Get the actual current page from most recent state (accounts for all interaction types)
+            const actualCurrentPage = isDragging 
+              ? getPageFromSliderValue(sliderValue)  // Use slider state during dragging
+              : (inputValue !== currentPage ? inputValue : currentPage);  // Use input if changed, else prop
+              
+            const currentPageDecimal = parsePageNumberToDecimal(actualCurrentPage);
+            const remainingPages = totalPagesDecimal.minus(currentPageDecimal);
+            const relativeJump = remainingPages.times(percentage);
+            const targetPageDecimal = currentPageDecimal.plus(relativeJump);
+            
+            // Apply boundary validation - clamp to maximum page
+            const clampedTarget = Decimal.min(targetPageDecimal, totalPagesDecimal);
+            const targetPage = clampedTarget.toFixed(0);
+            
+            // Format target page for tooltip display
+            const targetPageFormatted = formatNumber(targetPage);
+            
             return (
-              <Tooltip key={percentage} title={`Jump to ${(percentage * 100).toFixed(0)}% of keyspace`} arrow>
+              <Tooltip 
+                key={percentage} 
+                title={`Jump ${(percentage * 100).toFixed(0)}% forward to page ${targetPageFormatted}`} 
+                arrow
+              >
                 <Box
                   sx={{
                     width: 8,
@@ -164,7 +315,7 @@ export default function KeyspaceSlider({
                       transform: 'scale(1.2)',
                     },
                   }}
-                  onClick={() => onPageChange(targetPage.toString())}
+                  onClick={() => onPageChange(targetPage)}
                 />
               </Tooltip>
             );
@@ -173,4 +324,4 @@ export default function KeyspaceSlider({
       </Box>
     </Paper>
   );
-} 
+}

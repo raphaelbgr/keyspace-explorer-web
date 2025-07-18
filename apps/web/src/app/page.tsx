@@ -46,6 +46,7 @@ import KeyspaceSlider from './components/KeyspaceSlider';
 import ScannerModal from './components/ScannerModal';
 import UltraOptimizedDashboard from './components/UltraOptimizedDashboard';
 import BalanceStatus from './components/BalanceStatus';
+import { useScannerStore } from './store/scannerStore';
 
 interface PageData {
   pageNumber: string;
@@ -168,6 +169,63 @@ export default function Dashboard() {
     }
   };
 
+  // NEW: Direct page change that bypasses slider state
+  const handleDirectPageChange = async (pageNumber: string) => {
+    console.log('handleDirectPageChange called with pageNumber:', pageNumber);
+    console.log('pageNumber type:', typeof pageNumber);
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Call API directly first (API can handle string page numbers)
+      const requestBody = { 
+        pageNumber: pageNumber,  // Send as string to preserve precision
+        keysPerPage: navKeysPerPage 
+      };
+      
+      console.log('Sending API request with body:', JSON.stringify(requestBody));
+      
+      const response = await fetch('/api/generate-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate page');
+      }
+
+      const data = await response.json();
+      
+      // Update primary state directly
+      setPageData(data);
+      setCurrentPage(pageNumber);
+      setCurrentKeysPage(1); // Reset to first page of keys
+      
+      // Only update navigation store if number is within safe range
+      try {
+        const pageNum = parseFloat(pageNumber);
+        if (pageNum <= Number.MAX_SAFE_INTEGER && pageNum >= 1) {
+          setNavCurrentPage(Math.floor(pageNum));
+        } else {
+          console.log('Page number too large for navigation store, skipping navCurrentPage update');
+          // Don't update navCurrentPage for extremely large numbers
+          // The AdvancedNavigation component gets currentPage directly as a prop
+        }
+      } catch {
+        console.log('Could not parse page number for navigation store');
+      }
+      
+      setNotification({ message: formatTranslation(t.pageGenerated, { page: pageNumber }), type: 'success' });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setNotification({ message: t.failedToGenerate, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRandomPage = async () => {
     setLoading(true);
     setError(null);
@@ -203,14 +261,26 @@ export default function Dashboard() {
   };
 
   const handleScannerStart = async (config: any) => {
-    if (!pageData) return;
+    console.log('Scanner start called with config:', config);
+    if (!pageData) {
+      console.log('No page data available');
+      return;
+    }
     
     setIsScanning(true);
     setScanProgress(0);
     setNotification({ message: t.scanStarted, type: 'info' });
     
     try {
+      // Use the scanner store to manage scanning state
+      const { startScan } = useScannerStore.getState();
+      console.log('Starting scan with store');
+      startScan(config);
+      
+      // Start the scanning process
       const addresses = pageData.keys.flatMap(key => Object.values(key.addresses));
+      console.log('Checking addresses:', addresses.length);
+      
       const response = await fetch('/api/balances', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -222,8 +292,17 @@ export default function Dashboard() {
       }
 
       const { balances } = await response.json();
+      console.log('Balances received:', balances.length);
+      
+      // Update scanner store with results
+      const { updateBalance } = useScannerStore.getState();
+      const totalBalance = balances.reduce((sum: number, b: any) => sum + b.balance, 0);
+      console.log('Total balance:', totalBalance);
+      updateBalance(totalBalance);
+      
       setNotification({ message: t.scanCompleted, type: 'success' });
     } catch (err) {
+      console.error('Scanner error:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
       setNotification({ message: t.scanFailed, type: 'error' });
     } finally {
@@ -233,6 +312,10 @@ export default function Dashboard() {
   };
 
   const handleStopScan = () => {
+    // Use scanner store to stop scanning
+    const { stopScan } = useScannerStore.getState();
+    stopScan();
+    
     setIsScanning(false);
     setScanProgress(0);
     setNotification({ message: t.scanStopped, type: 'info' });
@@ -335,24 +418,56 @@ export default function Dashboard() {
   }, [pageData, currentKeysPage, keysPerPage]);
 
   const totalPages = useMemo(() => {
-    return navTotalPages; // Use the navigation store's total pages calculation
+    // Convert BigInt to number for UI components that expect number
+    return typeof navTotalPages === 'bigint' ? Number(navTotalPages) : navTotalPages;
   }, [navTotalPages]);
 
   const handlePageChange = useThrottle(useCallback((page: string) => {
-    // Handle large page numbers as strings to avoid scientific notation
-    const pageNumber = parseInt(page);
+    // Handle large page numbers as strings to avoid precision loss
+    let pageNumber: number;
+    
+    // For very large numbers, try to parse as BigInt first, then convert to number
+    if (page.length > 15) {
+      try {
+        const pageBigInt = BigInt(page);
+        pageNumber = Number(pageBigInt);
+        // Check if the conversion lost precision
+        if (pageBigInt !== BigInt(pageNumber)) {
+          console.warn('Page number precision lost during conversion');
+        }
+      } catch {
+        // Fallback to parseInt for smaller numbers
+        pageNumber = parseInt(page);
+      }
+    } else {
+      pageNumber = parseInt(page);
+    }
+    
     if (isNaN(pageNumber) || pageNumber < 1) return;
     
     setCurrentPage(page);
     setNavCurrentPage(pageNumber);
     setCurrentKeysPage(1); // Reset to first page of keys when changing main page
-    // Automatically generate the new page - always send as string
+    // Automatically generate the new page - always send as string to preserve precision
     handleGeneratePage(page);
   }, [setNavCurrentPage, handleGeneratePage]), 100);
 
   const handleKeysPerPageChange = useCallback((newKeysPerPage: number) => {
-    // Calculate the current position in the keyspace
-    const currentPosition = (parseInt(currentPage) - 1) * keysPerPage;
+    // Calculate the current position in the keyspace using BigInt for precision
+    let currentPosition: number;
+    
+    // Handle large page numbers properly
+    if (currentPage.length > 15) {
+      try {
+        const currentPageBigInt = BigInt(currentPage);
+        currentPosition = Number((currentPageBigInt - BigInt(1)) * BigInt(keysPerPage));
+      } catch {
+        // Fallback for smaller numbers
+        currentPosition = (parseInt(currentPage) - 1) * keysPerPage;
+      }
+    } else {
+      currentPosition = (parseInt(currentPage) - 1) * keysPerPage;
+    }
     
     // Calculate the new page number that maintains the same position
     const newPageNumber = Math.floor(currentPosition / newKeysPerPage) + 1;
@@ -441,9 +556,10 @@ export default function Dashboard() {
 
         {/* Advanced Navigation */}
         <AdvancedNavigation
-          currentPage={navCurrentPage}
+          currentPage={currentPage}
           totalPages={navTotalPages}
           onPageChange={handlePageChange}
+          onDirectPageChange={handleDirectPageChange}
           onRandomPage={handleRandomPage}
           keysPerPage={navKeysPerPage}
           onKeysPerPageChange={handleKeysPerPageChange}
@@ -454,6 +570,7 @@ export default function Dashboard() {
           open={scannerOpen}
           onClose={() => setScannerOpen(false)}
           onScanStart={handleScannerStart}
+          currentPage={parseInt(currentPage)}
         />
 
         {/* Balance Status */}
@@ -673,13 +790,6 @@ export default function Dashboard() {
           </Card>
         </Box>
       )}
-
-      {/* Scanner Modal */}
-      <ScannerModal
-        open={scannerOpen}
-        onClose={() => setScannerOpen(false)}
-        onScanStart={handleScannerStart}
-      />
     </Box>
   );
 }

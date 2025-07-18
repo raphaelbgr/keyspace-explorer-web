@@ -17,6 +17,8 @@ import {
   LinearProgress,
   Chip,
   Alert,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import { useScannerStore } from '../store/scannerStore';
 import { useTranslation } from '../translations';
@@ -25,13 +27,13 @@ interface ScannerModalProps {
   open: boolean;
   onClose: () => void;
   onScanStart: (config: any) => void;
+  currentPage: number;
 }
 
-export default function ScannerModal({ open, onClose, onScanStart }: ScannerModalProps) {
-  const translations = useTranslation();
+export default function ScannerModal({ open, onClose, onScanStart, currentPage }: ScannerModalProps) {
+  const t = useTranslation();
   const {
     isScanning,
-    currentPage,
     scanConfig,
     totalBalance,
     pagesScanned,
@@ -49,14 +51,51 @@ export default function ScannerModal({ open, onClose, onScanStart }: ScannerModa
 
   const [localConfig, setLocalConfig] = useState({
     mode: 'sequential' as 'sequential' | 'random' | 'targeted',
-    targetPage: 1,
+    targetPage: currentPage,
     maxPages: 100,
     delay: 1000,
     apiSource: 'local',
+    startPage: currentPage,
+    isSimulated: false,
   });
 
   const [scanStatus, setScanStatus] = useState('');
   const [error, setError] = useState('');
+
+  // Update config when currentPage changes
+  useEffect(() => {
+    setLocalConfig(prev => ({
+      ...prev,
+      targetPage: currentPage,
+      startPage: currentPage,
+    }));
+  }, [currentPage]);
+
+  // Function to send notification when balance is found
+  const sendNotification = async (privateKey: string, address: string, balance: number, addressType: string) => {
+    try {
+      const response = await fetch('/api/notify-match', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          privateKey,
+          address,
+          balance,
+          addressType,
+          isSimulated: localConfig.isSimulated,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Notification sent:', result);
+      } else {
+        console.error('Failed to send notification');
+      }
+    } catch (error) {
+      console.error('Notification error:', error);
+    }
+  };
 
   // Auto-continuation logic
   const continueScanning = useCallback(async () => {
@@ -65,7 +104,7 @@ export default function ScannerModal({ open, onClose, onScanStart }: ScannerModa
     }
 
     setAutoContinuing(true);
-    setScanStatus(translations.scanner.autoContinuing);
+    setScanStatus(t.scanner.autoContinuing);
 
     try {
       let nextPage: number;
@@ -90,6 +129,24 @@ export default function ScannerModal({ open, onClose, onScanStart }: ScannerModa
       // Simulate balance check delay
       await new Promise(resolve => setTimeout(resolve, scanConfig.delay));
 
+      // Simulate finding a balance (for testing)
+      if (localConfig.isSimulated && Math.random() < 0.1) { // 10% chance to find balance
+        const simulatedBalance = Math.random() * 10; // Random balance between 0-10 BTC
+        updateBalance(simulatedBalance);
+        
+        // Send notification for simulated balance
+        await sendNotification(
+          'simulated_private_key_' + nextPage,
+          'simulated_address_' + nextPage,
+          simulatedBalance,
+          'p2pkh_compressed'
+        );
+        
+        setAutoContinuing(false);
+        setScanStatus(t.scanner.fundsFound);
+        return;
+      }
+
       // Check if we should continue (total balance = 0)
       if (totalBalance === 0 && isScanning) {
         // Continue to next page
@@ -98,21 +155,27 @@ export default function ScannerModal({ open, onClose, onScanStart }: ScannerModa
         }, scanConfig.delay);
       } else {
         setAutoContinuing(false);
-        setScanStatus(translations.scanner.fundsFound);
+        setScanStatus(t.scanner.fundsFound);
       }
     } catch (err) {
-      setError(translations.scanner.error);
+      setError(t.scanner.error);
       setAutoContinuing(false);
     }
-  }, [isScanning, totalBalance, currentPage, scanConfig, translations, setAutoContinuing, setCurrentPage, incrementPagesScanned]);
+  }, [isScanning, totalBalance, currentPage, scanConfig, t, setAutoContinuing, setCurrentPage, incrementPagesScanned, localConfig.isSimulated, updateBalance]);
 
   // Start scanning with auto-continuation
   const handleStartScan = () => {
     setError('');
-    setScanStatus(translations.scanner.starting);
+    setScanStatus(t.scanner.starting);
     
-    startScan(localConfig);
-    onScanStart(localConfig);
+    // Update config with current page as starting point
+    const configWithStartPage = {
+      ...localConfig,
+      startPage: currentPage,
+    };
+    
+    startScan(configWithStartPage);
+    onScanStart(configWithStartPage);
     
     // Start auto-continuation after initial scan
     setTimeout(() => {
@@ -122,7 +185,7 @@ export default function ScannerModal({ open, onClose, onScanStart }: ScannerModa
 
   const handleStopScan = () => {
     stopScan();
-    setScanStatus(translations.scanner.stopped);
+    setScanStatus(t.scanner.stopped);
   };
 
   const handleClose = () => {
@@ -148,13 +211,13 @@ export default function ScannerModal({ open, onClose, onScanStart }: ScannerModa
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-      <DialogTitle>{translations.scanner.title}</DialogTitle>
+      <DialogTitle>{t.scanner.title}</DialogTitle>
       <DialogContent>
         <Box sx={{ mb: 3 }}>
           {!isScanning && (
             <Box sx={{ mb: 2 }}>
               <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>{translations.scanner.mode}</InputLabel>
+                <InputLabel>{t.scanner.mode}</InputLabel>
                 <Select
                   value={localConfig.mode}
                   onChange={(e) => setLocalConfig({
@@ -162,16 +225,16 @@ export default function ScannerModal({ open, onClose, onScanStart }: ScannerModa
                     mode: e.target.value as 'sequential' | 'random' | 'targeted'
                   })}
                 >
-                  <MenuItem value="sequential">{translations.scanner.sequential}</MenuItem>
-                  <MenuItem value="random">{translations.scanner.random}</MenuItem>
-                  <MenuItem value="targeted">{translations.scanner.targeted}</MenuItem>
+                  <MenuItem value="sequential">{t.scanner.sequential}</MenuItem>
+                  <MenuItem value="random">{t.scanner.random}</MenuItem>
+                  <MenuItem value="targeted">{t.scanner.targeted}</MenuItem>
                 </Select>
               </FormControl>
 
               {localConfig.mode === 'targeted' && (
                 <TextField
                   fullWidth
-                  label={translations.scanner.targetPage}
+                  label={t.scanner.targetPage}
                   type="number"
                   value={localConfig.targetPage}
                   onChange={(e) => setLocalConfig({
@@ -184,7 +247,7 @@ export default function ScannerModal({ open, onClose, onScanStart }: ScannerModa
 
               <TextField
                 fullWidth
-                label={translations.scanner.maxPages}
+                label={t.scanner.maxPages}
                 type="number"
                 value={localConfig.maxPages}
                 onChange={(e) => setLocalConfig({
@@ -196,23 +259,41 @@ export default function ScannerModal({ open, onClose, onScanStart }: ScannerModa
 
               <TextField
                 fullWidth
-                label={translations.scanner.delay}
+                label={t.scanner.delay}
                 type="number"
                 value={localConfig.delay}
                 onChange={(e) => setLocalConfig({
                   ...localConfig,
                   delay: parseInt(e.target.value) || 1000
                 })}
-                helperText={translations.scanner.delayHelp}
+                helperText={t.scanner.delayHelp}
                 sx={{ mb: 2 }}
               />
+
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={localConfig.isSimulated}
+                    onChange={(e) => setLocalConfig({
+                      ...localConfig,
+                      isSimulated: e.target.checked
+                    })}
+                  />
+                }
+                label="Simulated Data (for testing)"
+                sx={{ mb: 2 }}
+              />
+
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Starting from page: {currentPage}
+              </Typography>
             </Box>
           )}
 
           {isScanning && (
             <Box sx={{ mb: 2 }}>
               <Typography variant="h6" gutterBottom>
-                {translations.scanner.status}
+                {t.scanner.status}
               </Typography>
               
               <Box sx={{ mb: 2 }}>
@@ -221,7 +302,7 @@ export default function ScannerModal({ open, onClose, onScanStart }: ScannerModa
                 </Typography>
                 {isAutoContinuing && (
                   <Chip 
-                    label={translations.scanner.autoContinuing} 
+                    label={t.scanner.autoContinuing} 
                     color="info" 
                     size="small" 
                     sx={{ mt: 1 }}
@@ -231,19 +312,19 @@ export default function ScannerModal({ open, onClose, onScanStart }: ScannerModa
 
               <Box sx={{ mb: 2 }}>
                 <Typography variant="body2">
-                  {translations.scanner.currentPage}: {currentPage}
+                  {t.scanner.currentPage}: {currentPage}
                 </Typography>
                 <Typography variant="body2">
-                  {translations.scanner.pagesScanned}: {pagesScanned}
+                  {t.scanner.pagesScanned}: {pagesScanned}
                 </Typography>
                 <Typography variant="body2">
-                  {translations.scanner.totalBalance}: {totalBalance} BTC
+                  {t.scanner.totalBalance}: {totalBalance} BTC
                 </Typography>
                 <Typography variant="body2">
-                  {translations.scanner.scanRate}: {getScanRate()} pages/sec
+                  {t.scanner.scanRate}: {getScanRate()} pages/sec
                 </Typography>
                 <Typography variant="body2">
-                  {translations.scanner.duration}: {getScanDuration()}s
+                  {t.scanner.duration}: {getScanDuration()}s
                 </Typography>
               </Box>
 
@@ -255,7 +336,7 @@ export default function ScannerModal({ open, onClose, onScanStart }: ScannerModa
 
               {totalBalance > 0 && (
                 <Alert severity="success" sx={{ mb: 2 }}>
-                  {translations.scanner.fundsFound} - {totalBalance} BTC on page {lastScannedPage}!
+                  {t.scanner.fundsFound} - {totalBalance} BTC on page {lastScannedPage}!
                 </Alert>
               )}
             </Box>
@@ -271,15 +352,15 @@ export default function ScannerModal({ open, onClose, onScanStart }: ScannerModa
       <DialogActions>
         {!isScanning ? (
           <Button onClick={handleStartScan} variant="contained" color="primary">
-            {translations.scanner.start}
+            {t.scanner.start}
           </Button>
         ) : (
           <Button onClick={handleStopScan} variant="contained" color="error">
-            {translations.scanner.stop}
+            {t.scanner.stop}
           </Button>
         )}
         <Button onClick={handleClose}>
-          {translations.common.close}
+          {t.common.close}
         </Button>
       </DialogActions>
     </Dialog>

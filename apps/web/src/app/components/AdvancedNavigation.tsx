@@ -9,25 +9,59 @@ import {
   Chip,
   Grid,
   Paper,
-  Divider
+  Divider,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
-import {
-  FirstPage as FirstPageIcon,
-  LastPage as LastPageIcon,
-  NavigateBefore as NavigateBeforeIcon,
-  NavigateNext as NavigateNextIcon,
-  Casino as RandomIcon,
-  Add as AddIcon,
-  Remove as RemoveIcon,
-  Edit as EditIcon
-} from '@mui/icons-material';
+import { ExpandMore, ChevronLeft, ChevronRight, Shuffle, Casino } from '@mui/icons-material';
 import { useTranslation } from '../translations';
 import { useNavigationStore } from '../store/navigationStore';
+import Decimal from 'decimal.js';
+
+// Configure Decimal.js for very large numbers
+Decimal.set({
+  precision: 80,     // Support up to 80 significant digits
+  rounding: 1,       // ROUND_DOWN
+  toExpNeg: -80,     // Don't use exponential notation for small numbers
+  toExpPos: 80,      // Don't use exponential notation for large numbers
+  minE: -80,         // Minimum exponent
+  maxE: 80           // Maximum exponent
+});
+
+// Helper function to safely parse page numbers (including scientific notation)
+const parsePageNumberToDecimal = (pageValue: number | string): Decimal => {
+  try {
+    // First try direct Decimal parsing
+    const result = new Decimal(pageValue.toString());
+    return result;
+  } catch (error) {
+    try {
+      // If that fails, parse as Number first (handles scientific notation)
+      const asNumber = Number(pageValue);
+      if (isNaN(asNumber) || !isFinite(asNumber)) {
+        return new Decimal('1'); // fallback to page 1
+      }
+      // Convert to string and then to Decimal to avoid precision loss
+      const result = new Decimal(Math.floor(asNumber).toString());
+      return result;
+    } catch (secondError) {
+      return new Decimal('1'); // fallback to page 1
+    }
+  }
+};
+
+// Helper function to format numbers in normal decimal notation (no scientific notation)
+const formatPageNumber = (pageValue: number | string): string => {
+  const decimal = parsePageNumberToDecimal(pageValue);
+  return decimal.toFixed(0); // Always return as normal decimal string
+};
 
 interface AdvancedNavigationProps {
-  currentPage: number;
+  currentPage: number | string;  // Accept both number and string (for scientific notation)
   totalPages: number;
   onPageChange: (page: string) => void;
+  onDirectPageChange?: (page: string) => Promise<void>; // NEW: Direct API call bypass
   onRandomPage: () => void;
   keysPerPage: number;
   onKeysPerPageChange: (keysPerPage: number) => void;
@@ -37,6 +71,7 @@ const AdvancedNavigation = ({
   currentPage,
   totalPages,
   onPageChange,
+  onDirectPageChange, // NEW: Direct API call function
   onRandomPage,
   keysPerPage,
   onKeysPerPageChange
@@ -45,9 +80,7 @@ const AdvancedNavigation = ({
   const { getLastPageNumber } = useNavigationStore();
   const [customPage, setCustomPage] = useState('');
   const [customJump, setCustomJump] = useState('');
-  
-  // Debug logging
-  console.log('AdvancedNavigation render:', { t, hasT: !!t, firstPage: t?.firstPage });
+  const [expanded, setExpanded] = useState(false);
   
   // Ensure t is defined with fallbacks
   const translations = t || {
@@ -67,224 +100,304 @@ const AdvancedNavigation = ({
     }
   }, [customPage, totalPages, onPageChange]);
 
-  const handleCustomJump = useCallback((direction: 'forward' | 'backward') => {
+  const handleCustomJump = useCallback(async (direction: 'forward' | 'backward') => {
     const jump = parseInt(customJump);
     if (jump > 0) {
-      const newPage = direction === 'forward' ? currentPage + jump : currentPage - jump;
-      if (newPage > 0 && newPage <= totalPages) {
-        onPageChange(newPage.toString());
+      const currentPageDecimal = parsePageNumberToDecimal(currentPage);
+      const newPageDecimal = direction === 'forward' 
+        ? currentPageDecimal.plus(jump) 
+        : currentPageDecimal.minus(jump);
+      const totalPagesDecimal = new Decimal(totalPages);
+      
+      if (newPageDecimal.gte(1) && newPageDecimal.lte(totalPagesDecimal)) {
+        const newPageString = newPageDecimal.toFixed(0);
+        
+        // Use direct API call if available, otherwise fall back to onPageChange
+        if (onDirectPageChange) {
+          try {
+            await onDirectPageChange(newPageString);
+          } catch (error) {
+            console.error('Direct page change failed:', error);
+            // Fallback to regular page change
+            onPageChange(newPageString);
+          }
+        } else {
+          onPageChange(newPageString);
+        }
       }
     }
     // Don't clear the input - keep the last value
-  }, [customJump, currentPage, totalPages, onPageChange]);
+  }, [customJump, currentPage, totalPages, onPageChange, onDirectPageChange]);
 
-  const handleQuickJump = useCallback((jump: number) => {
-    const newPage = currentPage + jump;
-    if (newPage > 0 && newPage <= totalPages) {
-      onPageChange(newPage.toString());
+  const handleQuickJump = useCallback(async (jump: number) => {
+    console.log('handleQuickJump called with jump:', jump);
+    console.log('currentPage:', currentPage);
+    console.log('currentPage type:', typeof currentPage);
+    
+    const currentPageDecimal = parsePageNumberToDecimal(currentPage);
+    console.log('currentPageDecimal:', currentPageDecimal.toFixed(0));
+    console.log('currentPageDecimal (full precision):', currentPageDecimal.toString());
+    
+    console.log('About to add jump:', jump);
+    const newPageDecimal = currentPageDecimal.plus(jump);
+    console.log('newPageDecimal:', newPageDecimal.toFixed(0));
+    console.log('newPageDecimal (full precision):', newPageDecimal.toString());
+    
+    // Let's also test if the addition actually worked
+    const difference = newPageDecimal.minus(currentPageDecimal);
+    console.log('Difference (should be', jump + '):', difference.toFixed(0));
+    
+    const totalPagesDecimal = new Decimal(totalPages);
+    
+    // Use Decimal comparison to avoid precision issues with large numbers
+    if (newPageDecimal.gte(1) && newPageDecimal.lte(totalPagesDecimal)) {
+      const newPageString = newPageDecimal.toFixed(0);
+      console.log('Calling onDirectPageChange with:', newPageString);
+      
+      // Use direct API call if available, otherwise fall back to onPageChange
+      if (onDirectPageChange) {
+        try {
+          await onDirectPageChange(newPageString);
+        } catch (error) {
+          console.error('Direct page change failed:', error);
+          // Fallback to regular page change
+          onPageChange(newPageString);
+        }
+      } else {
+        console.log('No onDirectPageChange, using onPageChange');
+        onPageChange(newPageString);
+      }
+    } else {
+      console.log('New page out of bounds');
     }
-  }, [currentPage, totalPages, onPageChange]);
+  }, [currentPage, totalPages, onPageChange, onDirectPageChange]);
 
-  const handleQuickJumpBack = useCallback((jump: number) => {
-    const newPage = currentPage - jump;
-    if (newPage > 0 && newPage <= totalPages) {
-      onPageChange(newPage.toString());
+  const handleQuickJumpBack = useCallback(async (jump: number) => {
+    const currentPageDecimal = parsePageNumberToDecimal(currentPage);
+    const newPageDecimal = currentPageDecimal.minus(jump);
+    const totalPagesDecimal = new Decimal(totalPages);
+    
+    // Use Decimal comparison to avoid precision issues with large numbers
+    if (newPageDecimal.gte(1) && newPageDecimal.lte(totalPagesDecimal)) {
+      const newPageString = newPageDecimal.toFixed(0);
+      
+      // Use direct API call if available, otherwise fall back to onPageChange
+      if (onDirectPageChange) {
+        try {
+          await onDirectPageChange(newPageString);
+        } catch (error) {
+          console.error('Direct page change failed:', error);
+          // Fallback to regular page change
+          onPageChange(newPageString);
+        }
+      } else {
+        onPageChange(newPageString);
+      }
     }
-  }, [currentPage, totalPages, onPageChange]);
+  }, [currentPage, totalPages, onPageChange, onDirectPageChange]);
 
   return (
-    <Paper sx={{ p: 2, mb: 2, background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(10px)' }}>
-      <Typography variant="h6" gutterBottom>
-        Advanced Navigation
-      </Typography>
-      
-      {/* Basic Navigation */}
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 3, gap: 1 }}>
-        <Tooltip title={translations.firstPage} arrow>
-          <IconButton
-            onClick={() => onPageChange('1')}
-            disabled={currentPage === 1}
-            size="small"
-          >
-            <FirstPageIcon />
-          </IconButton>
-        </Tooltip>
-        
-        <Tooltip title={translations.previousPage} arrow>
-          <IconButton
-            onClick={() => onPageChange((currentPage - 1).toString())}
-            disabled={currentPage === 1}
-            size="small"
-          >
-            <NavigateBeforeIcon />
-          </IconButton>
-        </Tooltip>
-        
-        <Chip 
-          label={`Page ${currentPage} of ${totalPages}`} 
-          color="primary" 
-          variant="outlined"
-        />
-        
-        <Tooltip title={translations.nextPage} arrow>
-          <IconButton
-            onClick={() => onPageChange((currentPage + 1).toString())}
-            disabled={currentPage === totalPages}
-            size="small"
-          >
-            <NavigateNextIcon />
-          </IconButton>
-        </Tooltip>
-        
-        <Tooltip title={translations.lastPage} arrow>
-          <IconButton
-            onClick={() => onPageChange(getLastPageNumber())}
-            disabled={currentPage === totalPages}
-            size="small"
-          >
-            <LastPageIcon />
-          </IconButton>
-        </Tooltip>
-        
-        <Tooltip title="Go to Random Page" arrow>
-          <IconButton
-            onClick={onRandomPage}
-            color="secondary"
-            size="small"
-          >
-            <RandomIcon />
-          </IconButton>
-        </Tooltip>
-      </Box>
-
-      <Divider sx={{ mb: 2 }} />
-
-      {/* Custom Page Input */}
-      <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid item xs={12} md={6}>
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-            <TextField
-              size="small"
-              label="Go to Page"
-              value={customPage}
-              onChange={(e) => setCustomPage(e.target.value)}
-              type="number"
-              sx={{ 
-                flexGrow: 1,
-                minWidth: '200px',
-                '& .MuiInputBase-input': {
-                  fontSize: '14px',
-                  padding: '8px 12px',
-                }
-              }}
-            />
-            <Button
-              variant="contained"
-              onClick={handleCustomPageSubmit}
-              disabled={!customPage || parseInt(customPage) <= 0 || parseInt(customPage) > totalPages}
+    <Accordion expanded={expanded} onChange={() => setExpanded(e => !e)} sx={{ mb: 2 }}>
+      <AccordionSummary expandIcon={<ExpandMore />}>
+        <Typography variant="h6">Advanced Navigation</Typography>
+      </AccordionSummary>
+      <AccordionDetails>
+        {/* Basic Navigation */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 3, gap: 1 }}>
+          <Tooltip title={translations.firstPage} arrow>
+            <IconButton
+              onClick={() => onPageChange('1')}
+              disabled={currentPage === 1}
               size="small"
             >
-              Go
-            </Button>
-          </Box>
-        </Grid>
-        
-        <Grid item xs={12} md={6}>
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-            <TextField
+              <ChevronLeft />
+            </IconButton>
+          </Tooltip>
+          
+          <Tooltip title={translations.previousPage} arrow>
+            <IconButton
+              onClick={() => {
+                const currentPageDecimal = parsePageNumberToDecimal(currentPage);
+                const newPage = currentPageDecimal.minus(1);
+                onPageChange(newPage.toFixed(0));
+              }}
+              disabled={parsePageNumberToDecimal(currentPage).lte(1)}
               size="small"
-              label="Jump Pages"
-              value={customJump}
-              onChange={(e) => setCustomJump(e.target.value)}
-              type="number"
-              sx={{ flexGrow: 1 }}
-            />
-            <Tooltip title="Jump Backward" arrow>
-              <IconButton
-                onClick={() => handleCustomJump('backward')}
-                disabled={!customJump || parseInt(customJump) <= 0}
+            >
+              <ChevronLeft />
+            </IconButton>
+          </Tooltip>
+          
+          <Chip 
+            label={`Page ${formatPageNumber(currentPage)} of ${totalPages}`} 
+            color="primary" 
+            variant="outlined"
+          />
+          
+          <Tooltip title={translations.nextPage} arrow>
+            <IconButton
+              onClick={() => {
+                const currentPageDecimal = parsePageNumberToDecimal(currentPage);
+                const newPage = currentPageDecimal.plus(1);
+                onPageChange(newPage.toFixed(0));
+              }}
+              disabled={parsePageNumberToDecimal(currentPage).gte(totalPages)}
+              size="small"
+            >
+              <ChevronRight />
+            </IconButton>
+          </Tooltip>
+          
+          <Tooltip title={translations.lastPage} arrow>
+            <IconButton
+              onClick={() => onPageChange(getLastPageNumber())}
+              disabled={currentPage === totalPages}
+              size="small"
+            >
+              <ChevronRight />
+            </IconButton>
+          </Tooltip>
+          
+          <Tooltip title="Go to Random Page" arrow>
+            <IconButton
+              onClick={onRandomPage}
+              color="secondary"
+              size="small"
+            >
+              <Shuffle />
+            </IconButton>
+          </Tooltip>
+        </Box>
+
+        <Divider sx={{ mb: 2 }} />
+
+        {/* Custom Page Input */}
+        <Grid container spacing={2} sx={{ mb: 2 }}>
+          <Grid item xs={12} md={6}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+              <TextField
+                size="small"
+                label="Go to Page"
+                value={customPage}
+                onChange={(e) => setCustomPage(e.target.value)}
+                type="number"
+                sx={{ 
+                  flexGrow: 1,
+                  minWidth: '200px',
+                  '& .MuiInputBase-input': {
+                    fontSize: '14px',
+                    padding: '8px 12px',
+                  }
+                }}
+              />
+              <Button
+                variant="contained"
+                onClick={handleCustomPageSubmit}
+                disabled={!customPage || parseInt(customPage) <= 0 || parseInt(customPage) > totalPages}
                 size="small"
               >
-                <RemoveIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Jump Forward" arrow>
-              <IconButton
-                onClick={() => handleCustomJump('forward')}
-                disabled={!customJump || parseInt(customJump) <= 0}
+                Go
+              </Button>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} md={6}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+              <TextField
                 size="small"
-              >
-                <AddIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
+                label="Jump Pages"
+                value={customJump}
+                onChange={(e) => setCustomJump(e.target.value)}
+                type="number"
+                sx={{ flexGrow: 1 }}
+              />
+              <Tooltip title="Jump Backward" arrow>
+                <IconButton
+                  onClick={() => handleCustomJump('backward')}
+                  disabled={!customJump || parseInt(customJump) <= 0}
+                  size="small"
+                >
+                  <ChevronLeft />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Jump Forward" arrow>
+                <IconButton
+                  onClick={() => handleCustomJump('forward')}
+                  disabled={!customJump || parseInt(customJump) <= 0}
+                  size="small"
+                >
+                  <ChevronRight />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Grid>
         </Grid>
-      </Grid>
 
-      {/* Quick Jump Buttons */}
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle2" gutterBottom>
-          Quick Jump Forward:
-        </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-          {quickJumpPages.map((jump) => (
-            <Tooltip key={jump} title={`Jump +${jump} pages`} arrow>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={() => handleQuickJump(jump)}
-                disabled={currentPage + jump > totalPages}
-                sx={{ minWidth: 'auto', px: 1 }}
-              >
-                +{jump}
-              </Button>
-            </Tooltip>
-          ))}
+        {/* Quick Jump Buttons */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" gutterBottom>
+            Quick Jump Forward:
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {quickJumpPages.map((jump) => (
+              <Tooltip key={jump} title={`Jump +${jump} pages`} arrow>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => handleQuickJump(jump)}
+                  disabled={parsePageNumberToDecimal(currentPage).plus(jump).gte(totalPages)}
+                  sx={{ minWidth: 'auto', px: 1 }}
+                >
+                  +{jump}
+                </Button>
+              </Tooltip>
+            ))}
+          </Box>
         </Box>
-      </Box>
 
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle2" gutterBottom>
-          Quick Jump Backward:
-        </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-          {quickJumpPages.map((jump) => (
-            <Tooltip key={jump} title={`Jump -${jump} pages`} arrow>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={() => handleQuickJumpBack(jump)}
-                disabled={currentPage - jump < 1}
-                sx={{ minWidth: 'auto', px: 1 }}
-              >
-                -{jump}
-              </Button>
-            </Tooltip>
-          ))}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" gutterBottom>
+            Quick Jump Backward:
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {quickJumpPages.map((jump) => (
+              <Tooltip key={jump} title={`Jump -${jump} pages`} arrow>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => handleQuickJumpBack(jump)}
+                  disabled={parsePageNumberToDecimal(currentPage).minus(jump).lte(1)}
+                  sx={{ minWidth: 'auto', px: 1 }}
+                >
+                  -{jump}
+                </Button>
+              </Tooltip>
+            ))}
+          </Box>
         </Box>
-      </Box>
 
-      {/* Keys Per Page Control */}
-      <Box>
-        <Typography variant="subtitle2" gutterBottom>
-          Keys per Page:
-        </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-          {[10, 25, 45, 50, 100, 250, 500, 1000, 2500, 5000, 10000].map((count) => (
-            <Tooltip key={count} title={`Show ${count} keys per page`} arrow>
-              <Button
-                size="small"
-                variant={keysPerPage === count ? "contained" : "outlined"}
-                onClick={() => onKeysPerPageChange(count)}
-                sx={{ minWidth: 'auto', px: 1 }}
-              >
-                {count}
-              </Button>
-            </Tooltip>
-          ))}
+        {/* Keys Per Page Control */}
+        <Box>
+          <Typography variant="subtitle2" gutterBottom>
+            Keys per Page:
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {[10, 25, 45, 50, 100, 250, 500, 1000, 2500, 5000, 10000].map((count) => (
+              <Tooltip key={count} title={`Show ${count} keys per page`} arrow>
+                <Button
+                  size="small"
+                  variant={keysPerPage === count ? "contained" : "outlined"}
+                  onClick={() => onKeysPerPageChange(count)}
+                  sx={{ minWidth: 'auto', px: 1 }}
+                >
+                  {count}
+                </Button>
+              </Tooltip>
+            ))}
+          </Box>
         </Box>
-      </Box>
-    </Paper>
+      </AccordionDetails>
+    </Accordion>
   );
 };
 

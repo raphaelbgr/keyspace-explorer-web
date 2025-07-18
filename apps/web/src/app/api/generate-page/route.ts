@@ -6,7 +6,7 @@ import '../../../lib/ecc-init'; // Import ECC initialization
 
 const generatePageSchema = z.object({
   pageNumber: z.string().min(1),
-  keysPerPage: z.number().min(1).max(100).optional().default(45),
+  keysPerPage: z.number().min(1).max(10000).optional().default(45),
 });
 
 function parsePageNumber(pageNumber: string): bigint {

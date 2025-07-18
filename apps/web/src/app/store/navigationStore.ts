@@ -32,7 +32,7 @@ export const useNavigationStore = create<NavigationState>()(
       totalPages: BigInt(1),
       keysPerPage: 45,
       estimatedTotalKeys: BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140"), // Maximum Bitcoin private key
-      keysPerPageOptions: [10, 25, 45, 50, 100, 250, 500],
+      keysPerPageOptions: [10, 25, 45, 50, 100, 250, 500, 1000, 10000],
       
       setCurrentPage: (page: number) => {
         set({ currentPage: Math.max(1, page) });

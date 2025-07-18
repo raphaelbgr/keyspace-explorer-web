@@ -15,11 +15,15 @@ import {
   Paper,
   IconButton,
   Collapse,
-  CircularProgress
+  CircularProgress,
+  Tooltip
 } from '@mui/material';
 import { AccountBalance as BalanceIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from '@mui/icons-material';
 import { useTranslation, formatTranslation } from '../translations';
 import LazyKeyCard from './LazyKeyCard';
+import Decimal from 'decimal.js';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
 interface UltraOptimizedDashboardProps {
   pageData: any;
@@ -103,7 +107,7 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
             <TableBody>
               {optimizedKeys.map((key, index) => {
                 // Use the actual key number from the backend data (1-based)
-                const keyNumber = key.index + 1;
+                const keyNumber = Decimal(currentKeysPage).minus(1).times(keysPerPage).plus(key.index).plus(1).toFixed(0);
                 const globalIndex = (currentKeysPage - 1) * keysPerPage + index;
                 const isExpanded = expandedKeys.has(globalIndex);
                 const isLoadingAddresses = loadingAddresses.has(globalIndex);
@@ -157,9 +161,19 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                     <Typography variant="subtitle2" color="text.secondary">
                                       {t.privateKey}:
                                     </Typography>
-                                    <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>
-                                      {key.privateKey}
-                                    </Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>
+                                        {key.privateKey}
+                                      </Typography>
+                                      <Tooltip title={t.copyToClipboard}>
+                                        <IconButton size="small" onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigator.clipboard.writeText(key.privateKey);
+                                        }}>
+                                          <ContentCopyIcon fontSize="small" />
+                                        </IconButton>
+                                      </Tooltip>
+                                    </Box>
                                   </Box>
                                   
                                   <Box>
