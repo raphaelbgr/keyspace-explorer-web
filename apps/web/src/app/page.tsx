@@ -43,7 +43,7 @@ import FloatingNavigation from './components/FloatingNavigation';
 import ControlPanel from './components/ControlPanel';
 import AdvancedNavigation from './components/AdvancedNavigation';
 import KeyspaceSlider from './components/KeyspaceSlider';
-import ScannerModal from './components/ScannerModal';
+import ScannerCard from './components/ScannerCard';
 import UltraOptimizedDashboard from './components/UltraOptimizedDashboard';
 import BalanceStatus from './components/BalanceStatus';
 import { useScannerStore } from './store/scannerStore';
@@ -102,7 +102,6 @@ export default function Dashboard() {
   const [apiSource, setApiSource] = useState<string>('local');
   const [expandedKeys, setExpandedKeys] = useState<Set<number>>(new Set());
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('table');
-  const [scannerOpen, setScannerOpen] = useState(false);
   const [keysPerPage, setKeysPerPage] = useState(45);
   const [currentKeysPage, setCurrentKeysPage] = useState(1);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
@@ -250,69 +249,28 @@ export default function Dashboard() {
     }
   };
 
-  const handleStartScan = async () => {
-    setScannerOpen(true);
-  };
-
   const handleScannerStart = async (config: any) => {
     console.log('Scanner start called with config:', config);
     if (!pageData) {
       console.log('No page data available');
       return;
     }
-    
-    setIsScanning(true);
-    setScanProgress(0);
-    setNotification({ message: t.scanStarted, type: 'info' });
-    
+
     try {
-      // Use the scanner store to manage scanning state
-      const { startScan } = useScannerStore.getState();
-      console.log('Starting scan with store');
-      startScan(config);
-      
-      // Start the scanning process
-      const addresses = pageData.keys.flatMap(key => Object.values(key.addresses));
-      console.log('Checking addresses:', addresses.length);
-      
-      const response = await fetch('/api/balances', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addresses, source: config.apiSource || apiSource }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch balances');
-      }
-
-      const { balances } = await response.json();
-      console.log('Balances received:', balances.length);
-      
-      // Update scanner store with results
-      const { updateBalance } = useScannerStore.getState();
-      const totalBalance = balances.reduce((sum: number, b: any) => sum + b.balance, 0);
-      console.log('Total balance:', totalBalance);
-      updateBalance(totalBalance);
-      
-      setNotification({ message: t.scanCompleted, type: 'success' });
-    } catch (err) {
-      console.error('Scanner error:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      setNotification({ message: t.scanFailed, type: 'error' });
-    } finally {
-      setIsScanning(false);
-      setScanProgress(100);
+      // Implementation for scanner start logic can be added here
+      console.log('Starting scanner with config:', config);
+    } catch (error) {
+      console.error('Scanner start error:', error);
     }
   };
 
+  // Placeholder scanner functions for ControlPanel compatibility
+  const handleStartScan = () => {
+    console.log('Scanner functionality moved to ScannerCard component');
+  };
+
   const handleStopScan = () => {
-    // Use scanner store to stop scanning
-    const { stopScan } = useScannerStore.getState();
-    stopScan();
-    
-    setIsScanning(false);
-    setScanProgress(0);
-    setNotification({ message: t.scanStopped, type: 'info' });
+    console.log('Scanner functionality moved to ScannerCard component');
   };
 
   const handleFetchBalances = async () => {
@@ -528,22 +486,19 @@ export default function Dashboard() {
           onPageChange={handlePageChange}
           onGeneratePage={() => handleGeneratePage()}
           onFetchBalances={handleFetchBalances}
-          onStartScan={handleStartScan}
-          onStopScan={handleStopScan}
           onToggleDisplayMode={handleToggleDisplayMode}
           apiSource={apiSource}
           onApiSourceChange={handleApiSourceChange}
           displayMode={displayMode}
           loading={loading}
-          isScanning={isScanning}
-          pageData={pageData}
-          scanProgress={scanProgress}
+          lastChecked={lastChecked}
+          hasFunds={pageData?.totalPageBalance ? pageData.totalPageBalance > 0 : false}
         />
 
         {/* Keyspace Slider */}
         <KeyspaceSlider
-          currentPage={navCurrentPage}
-          totalPages={navTotalPages}
+          currentPage={currentPage}
+          totalPages={Number(navTotalPages)}
           onPageChange={handlePageChange}
           disabled={loading}
         />
@@ -551,7 +506,7 @@ export default function Dashboard() {
         {/* Advanced Navigation */}
         <AdvancedNavigation
           currentPage={currentPage}
-          totalPages={navTotalPages}
+          totalPages={Number(navTotalPages)}
           onPageChange={handlePageChange}
           onDirectPageChange={handleDirectPageChange}
           onRandomPage={handleRandomPage}
@@ -559,12 +514,12 @@ export default function Dashboard() {
           onKeysPerPageChange={handleKeysPerPageChange}
         />
 
-        {/* Scanner Modal */}
-        <ScannerModal
-          open={scannerOpen}
-          onClose={() => setScannerOpen(false)}
-          onScanStart={handleScannerStart}
-          currentPage={parseInt(currentPage)}
+        {/* Scanner Card */}
+        <ScannerCard
+          currentPage={currentPage}
+          totalPages={Number(navTotalPages)}
+          onPageChange={handlePageChange}
+          onDirectPageChange={handleDirectPageChange}
         />
 
         {/* Balance Status */}

@@ -305,15 +305,11 @@ export const useTranslation = () => {
   // Get the language-specific translations or fall back to English
   const langTranslations = translations[language] || translations.en;
   
-  // Ensure we always return a complete translation object
-  // This prevents undefined errors when accessing translation keys
+  // Return complete translation object
   const result = {
     ...translations.en, // Start with English as base
     ...langTranslations, // Override with selected language
   };
-  
-  // Debug logging to see what's happening
-  console.log('useTranslation called:', { language, hasTranslations: !!result, firstPage: result.firstPage });
   
   return result;
 };

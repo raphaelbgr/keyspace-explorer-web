@@ -320,19 +320,26 @@ const AdvancedNavigation = ({
             Quick Jump Forward:
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            {quickJumpPages.map((jump) => (
-              <Tooltip key={jump} title={`Jump +${jump} pages`} arrow>
+            {quickJumpPages.map((jump) => {
+              const isDisabled = parsePageNumberToDecimal(currentPage).plus(jump).gte(totalPages);
+              const button = (
                 <Button
                   size="small"
                   variant="outlined"
                   onClick={() => handleQuickJump(jump)}
-                  disabled={parsePageNumberToDecimal(currentPage).plus(jump).gte(totalPages)}
+                  disabled={isDisabled}
                   sx={{ minWidth: 'auto', px: 1 }}
                 >
                   +{jump}
                 </Button>
-              </Tooltip>
-            ))}
+              );
+              
+              return (
+                <Tooltip key={jump} title={`Jump +${jump} pages`} arrow>
+                  {isDisabled ? <span>{button}</span> : button}
+                </Tooltip>
+              );
+            })}
           </Box>
         </Box>
 
@@ -341,19 +348,26 @@ const AdvancedNavigation = ({
             Quick Jump Backward:
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            {quickJumpPages.map((jump) => (
-              <Tooltip key={jump} title={`Jump -${jump} pages`} arrow>
+            {quickJumpPages.map((jump) => {
+              const isDisabled = parsePageNumberToDecimal(currentPage).minus(jump).lte(1);
+              const button = (
                 <Button
                   size="small"
                   variant="outlined"
                   onClick={() => handleQuickJumpBack(jump)}
-                  disabled={parsePageNumberToDecimal(currentPage).minus(jump).lte(1)}
+                  disabled={isDisabled}
                   sx={{ minWidth: 'auto', px: 1 }}
                 >
                   -{jump}
                 </Button>
-              </Tooltip>
-            ))}
+              );
+              
+              return (
+                <Tooltip key={jump} title={`Jump -${jump} pages`} arrow>
+                  {isDisabled ? <span>{button}</span> : button}
+                </Tooltip>
+              );
+            })}
           </Box>
         </Box>
 

@@ -30,16 +30,13 @@ interface ControlPanelProps {
   onPageChange: (page: string) => void;
   onGeneratePage: () => void;
   onFetchBalances: () => void;
-  onStartScan: () => void;
-  onStopScan: () => void;
   onToggleDisplayMode: () => void;
   apiSource: string;
   onApiSourceChange: (source: string) => void;
   displayMode: 'grid' | 'table';
   loading: boolean;
-  isScanning: boolean;
-  pageData: any;
-  scanProgress: number;
+  lastChecked: string | null;
+  hasFunds: boolean;
 }
 
 const ControlPanel = memo<ControlPanelProps>(({
@@ -47,16 +44,13 @@ const ControlPanel = memo<ControlPanelProps>(({
   onPageChange,
   onGeneratePage,
   onFetchBalances,
-  onStartScan,
-  onStopScan,
   onToggleDisplayMode,
   apiSource,
   onApiSourceChange,
   displayMode,
   loading,
-  isScanning,
-  pageData,
-  scanProgress
+  lastChecked,
+  hasFunds
 }) => {
   const t = useTranslation();
   
@@ -127,33 +121,62 @@ const ControlPanel = memo<ControlPanelProps>(({
           </Grid>
 
           <Grid item xs={12} md={2}>
-            <Tooltip title="Fetch balances for all addresses on the current page" arrow>
-              <Button
-                fullWidth
-                variant="outlined"
-                onClick={onFetchBalances}
-                disabled={loading || !pageData}
-                startIcon={<BalanceIcon />}
-                size="small"
-              >
-                {t.fetchBalances}
-              </Button>
+            <Tooltip title={t.fetchBalances} arrow>
+              {(loading || !lastChecked) ? (
+                <span>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={onFetchBalances}
+                    disabled={loading || !lastChecked}
+                    startIcon={<BalanceIcon />}
+                    size="small"
+                  >
+                    {t.fetchBalances}
+                  </Button>
+                </span>
+              ) : (
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  onClick={onFetchBalances}
+                  disabled={loading || !lastChecked}
+                  startIcon={<BalanceIcon />}
+                  size="small"
+                >
+                  {t.fetchBalances}
+                </Button>
+              )}
             </Tooltip>
           </Grid>
 
           <Grid item xs={12} md={2}>
-            <Tooltip title={isScanning ? "Stop the scanning process" : "Start scanning for funds"} arrow>
-              <Button
-                fullWidth
-                variant={isScanning ? "outlined" : "contained"}
-                color={isScanning ? "error" : "success"}
-                onClick={isScanning ? onStopScan : onStartScan}
-                disabled={!pageData}
-                startIcon={isScanning ? <StopIcon /> : <PlayIcon />}
-                size="small"
-              >
-                {isScanning ? t.stopScan : t.startScan}
-              </Button>
+            <Tooltip title={hasFunds ? "Funds found on this page" : "No funds found on this page"} arrow>
+              {!lastChecked ? (
+                <span>
+                  <Button
+                    fullWidth
+                    variant={hasFunds ? "contained" : "outlined"}
+                    color={hasFunds ? "success" : "error"}
+                    disabled={!lastChecked}
+                    startIcon={hasFunds ? <PlayIcon /> : <StopIcon />}
+                    size="small"
+                  >
+                    {hasFunds ? t.fundsFound : t.noFunds}
+                  </Button>
+                </span>
+              ) : (
+                <Button
+                  fullWidth
+                  variant={hasFunds ? "contained" : "outlined"}
+                  color={hasFunds ? "success" : "error"}
+                  disabled={!lastChecked}
+                  startIcon={hasFunds ? <PlayIcon /> : <StopIcon />}
+                  size="small"
+                >
+                  {hasFunds ? t.fundsFound : t.noFunds}
+                </Button>
+              )}
             </Tooltip>
           </Grid>
 
@@ -173,21 +196,21 @@ const ControlPanel = memo<ControlPanelProps>(({
         </Grid>
 
         {/* Scan Progress */}
-        {isScanning && (
+        {lastChecked && (
           <Box sx={{ mt: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
               <SpeedIcon sx={{ mr: 1, color: 'primary.main' }} />
               <Typography variant="body2" color="text.secondary">
-                Scanning Progress
+                Last Checked: {lastChecked}
               </Typography>
             </Box>
             <LinearProgress 
               variant="determinate" 
-              value={scanProgress} 
+              value={hasFunds ? 100 : 0} 
               sx={{ height: 8, borderRadius: 4 }}
             />
             <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-              {scanProgress}% Complete
+              {hasFunds ? "Funds found" : "No funds found"}
             </Typography>
           </Box>
         )}
