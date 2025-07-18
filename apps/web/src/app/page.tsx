@@ -171,9 +171,6 @@ export default function Dashboard() {
 
   // NEW: Direct page change that bypasses slider state
   const handleDirectPageChange = async (pageNumber: string) => {
-    console.log('handleDirectPageChange called with pageNumber:', pageNumber);
-    console.log('pageNumber type:', typeof pageNumber);
-    
     setLoading(true);
     setError(null);
     
@@ -183,8 +180,6 @@ export default function Dashboard() {
         pageNumber: pageNumber,  // Send as string to preserve precision
         keysPerPage: navKeysPerPage 
       };
-      
-      console.log('Sending API request with body:', JSON.stringify(requestBody));
       
       const response = await fetch('/api/generate-page', {
         method: 'POST',
@@ -209,12 +204,11 @@ export default function Dashboard() {
         if (pageNum <= Number.MAX_SAFE_INTEGER && pageNum >= 1) {
           setNavCurrentPage(Math.floor(pageNum));
         } else {
-          console.log('Page number too large for navigation store, skipping navCurrentPage update');
           // Don't update navCurrentPage for extremely large numbers
           // The AdvancedNavigation component gets currentPage directly as a prop
         }
       } catch {
-        console.log('Could not parse page number for navigation store');
+        // Could not parse page number for navigation store
       }
       
       setNotification({ message: formatTranslation(t.pageGenerated, { page: pageNumber }), type: 'success' });

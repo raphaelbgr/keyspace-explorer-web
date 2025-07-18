@@ -130,29 +130,13 @@ const AdvancedNavigation = ({
   }, [customJump, currentPage, totalPages, onPageChange, onDirectPageChange]);
 
   const handleQuickJump = useCallback(async (jump: number) => {
-    console.log('handleQuickJump called with jump:', jump);
-    console.log('currentPage:', currentPage);
-    console.log('currentPage type:', typeof currentPage);
-    
     const currentPageDecimal = parsePageNumberToDecimal(currentPage);
-    console.log('currentPageDecimal:', currentPageDecimal.toFixed(0));
-    console.log('currentPageDecimal (full precision):', currentPageDecimal.toString());
-    
-    console.log('About to add jump:', jump);
     const newPageDecimal = currentPageDecimal.plus(jump);
-    console.log('newPageDecimal:', newPageDecimal.toFixed(0));
-    console.log('newPageDecimal (full precision):', newPageDecimal.toString());
-    
-    // Let's also test if the addition actually worked
-    const difference = newPageDecimal.minus(currentPageDecimal);
-    console.log('Difference (should be', jump + '):', difference.toFixed(0));
-    
     const totalPagesDecimal = new Decimal(totalPages);
     
     // Use Decimal comparison to avoid precision issues with large numbers
     if (newPageDecimal.gte(1) && newPageDecimal.lte(totalPagesDecimal)) {
       const newPageString = newPageDecimal.toFixed(0);
-      console.log('Calling onDirectPageChange with:', newPageString);
       
       // Use direct API call if available, otherwise fall back to onPageChange
       if (onDirectPageChange) {
@@ -164,11 +148,8 @@ const AdvancedNavigation = ({
           onPageChange(newPageString);
         }
       } else {
-        console.log('No onDirectPageChange, using onPageChange');
         onPageChange(newPageString);
       }
-    } else {
-      console.log('New page out of bounds');
     }
   }, [currentPage, totalPages, onPageChange, onDirectPageChange]);
 

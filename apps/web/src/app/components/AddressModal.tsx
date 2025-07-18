@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -14,9 +14,14 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Chip
+  Chip,
+  IconButton,
+  Tooltip,
+  Snackbar,
+  Alert
 } from '@mui/material';
-import { ContentCopy as CopyIcon } from '@mui/icons-material';
+import { ContentCopy as ContentCopyIcon, Close as CloseIcon } from '@mui/icons-material';
+import { useCopyToClipboard } from '../utils/clipboard';
 
 interface AddressModalProps {
   open: boolean;
@@ -36,8 +41,19 @@ interface AddressModalProps {
 }
 
 const AddressModal = ({ open, onClose, keyData, keyNumber }: AddressModalProps) => {
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { copy } = useCopyToClipboard();
+
+  const handleCopy = async (text: string) => {
+    const result = await copy(text);
+    if (result.success) {
+      setCopied(true);
+      setError(null);
+    } else {
+      setError(result.message);
+      setCopied(false);
+    }
   };
 
   if (!keyData) return null;
@@ -60,10 +76,19 @@ const AddressModal = ({ open, onClose, keyData, keyNumber }: AddressModalProps) 
       <DialogTitle>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h6">Key {keyNumber} - Wallet Addresses</Typography>
-          <Chip 
-            label={`${keyData.totalBalance.toFixed(8)} BTC`} 
-            color={keyData.totalBalance > 0 ? "success" : "default"}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>
+              {keyData.privateKey}
+            </Typography>
+            <Tooltip title="Copy Private Key">
+              <IconButton
+                size="small"
+                onClick={() => handleCopy(keyData.privateKey)}
+              >
+                <ContentCopyIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
       </DialogTitle>
       
@@ -78,7 +103,7 @@ const AddressModal = ({ open, onClose, keyData, keyNumber }: AddressModalProps) 
             </Typography>
             <Button
               size="small"
-              startIcon={<CopyIcon />}
+              startIcon={<ContentCopyIcon />}
               onClick={() => handleCopy(keyData.privateKey)}
             >
               Copy
@@ -111,7 +136,7 @@ const AddressModal = ({ open, onClose, keyData, keyNumber }: AddressModalProps) 
                   <TableCell>
                     <Button
                       size="small"
-                      startIcon={<CopyIcon />}
+                      startIcon={<ContentCopyIcon />}
                       onClick={() => handleCopy(address.value)}
                     >
                       Copy

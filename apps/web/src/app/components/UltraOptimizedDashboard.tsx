@@ -1,10 +1,10 @@
 import React, { memo, useMemo, useCallback, useRef, useState } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Card, 
-  CardContent, 
-  Chip, 
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  Chip,
   Grid,
   Table,
   TableBody,
@@ -16,7 +16,9 @@ import {
   IconButton,
   Collapse,
   CircularProgress,
-  Tooltip
+  Tooltip,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import { AccountBalance as BalanceIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from '@mui/icons-material';
 import { useTranslation, formatTranslation } from '../translations';
@@ -24,6 +26,7 @@ import LazyKeyCard from './LazyKeyCard';
 import Decimal from 'decimal.js';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import { useCopyToClipboard } from '../utils/clipboard';
 
 interface UltraOptimizedDashboardProps {
   pageData: any;
@@ -46,7 +49,18 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
 }) => {
   const [loadingAddresses, setLoadingAddresses] = useState<Set<number>>(new Set());
   const [loadedAddresses, setLoadedAddresses] = useState<Set<number>>(new Set());
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const { copy } = useCopyToClipboard();
   const t = useTranslation();
+
+  // Handle copying to clipboard with user feedback
+  const handleCopy = async (text: string) => {
+    const result = await copy(text);
+    setNotification({
+      message: result.message,
+      type: result.success ? 'success' : 'error'
+    });
+  };
 
   // Show all displayed keys without artificial limiting
   const optimizedKeys = useMemo(() => {
@@ -168,7 +182,7 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                       <Tooltip title={t.copyToClipboard}>
                                         <IconButton size="small" onClick={(e) => {
                                           e.stopPropagation();
-                                          navigator.clipboard.writeText(key.privateKey);
+                                          handleCopy(key.privateKey);
                                         }}>
                                           <ContentCopyIcon fontSize="small" />
                                         </IconButton>
@@ -257,6 +271,24 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
           </Table>
         </TableContainer>
       )}
+      
+      {/* Notification Snackbar */}
+      <Snackbar
+        open={notification !== null}
+        autoHideDuration={3000}
+        onClose={() => setNotification(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        {notification && (
+          <Alert 
+            onClose={() => setNotification(null)} 
+            severity={notification.type}
+            sx={{ width: '100%' }}
+          >
+            {notification.message}
+          </Alert>
+        )}
+      </Snackbar>
     </Box>
   );
 });
