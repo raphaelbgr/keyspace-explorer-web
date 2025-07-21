@@ -42,19 +42,22 @@ import {
 import { useScannerStore } from '../store/scannerStore';
 import { useTranslation } from '../translations';
 import Decimal from 'decimal.js';
+import { clientKeyGenerationService } from '../../lib/services/ClientKeyGenerationService';
 
 interface ScannerCardProps {
   currentPage: string;
   totalPages: number;
   onPageChange: (page: string) => void;
   onDirectPageChange?: (page: string) => Promise<void>;
+  generateLocally?: boolean;
 }
 
 export default function ScannerCard({ 
   currentPage, 
   totalPages, 
   onPageChange, 
-  onDirectPageChange 
+  onDirectPageChange,
+  generateLocally = false
 }: ScannerCardProps) {
   const t = useTranslation();
   const [expanded, setExpanded] = useState(false);
@@ -119,30 +122,73 @@ export default function ScannerCard({
     }
   }, [isScanning, startTime, pagesScanned]);
 
+  // Calculate maximum valid pages based on Bitcoin's private key limit
+  const calculateMaxValidPages = useCallback((): string => {
+    // Maximum valid Bitcoin private key (same as in ClientKeyGenerationService)
+    const MAX_PRIVATE_KEY = BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140");
+    
+    // Calculate maximum page number where all keys on the page are valid
+    // Formula: maxPage = floor((MAX_PRIVATE_KEY - KEYS_PER_PAGE + 1) / KEYS_PER_PAGE) + 1
+    const maxPageBigInt = (MAX_PRIVATE_KEY - BigInt(scanPageSize) + BigInt(1)) / BigInt(scanPageSize) + BigInt(1);
+    
+    // Convert to string for consistency
+    return maxPageBigInt.toString();
+  }, [scanPageSize]);
+
   // Generate next page based on navigation mode
   const generateNextPage = useCallback((): string => {
     const currentPageDecimal = new Decimal(currentScanPageRef.current);
     const totalPagesDecimal = new Decimal(totalPages);
+    
+    // Calculate the actual maximum valid pages based on Bitcoin's limits
+    const maxValidPages = calculateMaxValidPages();
+    const maxValidPagesDecimal = new Decimal(maxValidPages);
+    
+    // Use the smaller of totalPages or maxValidPages to ensure we stay within Bitcoin's limits
+    const effectiveMaxPages = totalPagesDecimal.lt(maxValidPagesDecimal) ? totalPagesDecimal : maxValidPagesDecimal;
 
     switch (autoNavigationMode) {
       case 'forward':
         const nextPage = currentPageDecimal.plus(1);
-        return nextPage.lte(totalPagesDecimal) ? nextPage.toFixed(0) : '1';
+        return nextPage.lte(effectiveMaxPages) ? nextPage.toFixed(0) : '1';
       
       case 'backward':
         const prevPage = currentPageDecimal.minus(1);
-        return prevPage.gte(1) ? prevPage.toFixed(0) : totalPagesDecimal.toFixed(0);
+        return prevPage.gte(1) ? prevPage.toFixed(0) : effectiveMaxPages.toFixed(0);
       
       case 'random':
       default:
-        // Generate cryptographically secure random page
-        const randomArray = new Uint32Array(1);
-        crypto.getRandomValues(randomArray);
-        const randomValue = randomArray[0] / (0xFFFFFFFF + 1); // 0 to 1
-        const randomPage = Math.floor(randomValue * totalPages) + 1;
-        return randomPage.toString();
+        // Generate cryptographically secure random page using Decimal.js for large numbers
+        try {
+          const randomArray = new Uint32Array(2); // Use 2 32-bit values for better randomness
+          crypto.getRandomValues(randomArray);
+          
+          // Create a random decimal value between 0 and 1 with high precision
+          const randomHigh = new Decimal(randomArray[0]).dividedBy(0xFFFFFFFF + 1);
+          const randomLow = new Decimal(randomArray[1]).dividedBy((0xFFFFFFFF + 1) * (0xFFFFFFFF + 1));
+          const randomValue = randomHigh.plus(randomLow);
+          
+          // Multiply by effective max pages (not total pages) and floor the result
+          const randomPageDecimal = randomValue.times(effectiveMaxPages).floor().plus(1);
+          
+          // Ensure the result is within valid range
+          if (randomPageDecimal.lte(0)) {
+            return '1';
+          }
+          if (randomPageDecimal.gt(effectiveMaxPages)) {
+            return effectiveMaxPages.toFixed(0);
+          }
+          
+          console.log(`🎲 Random page generated: ${randomPageDecimal.toFixed(0)} (max valid: ${maxValidPages})`);
+          return randomPageDecimal.toFixed(0);
+        } catch (error) {
+          console.error('Random page generation error:', error);
+          // Fallback to a safe range that definitely won't exceed Bitcoin limits
+          const fallbackRandom = Math.floor(Math.random() * 1000000) + 1;
+          return fallbackRandom.toString();
+        }
     }
-  }, [totalPages, autoNavigationMode]);
+  }, [totalPages, autoNavigationMode, calculateMaxValidPages]);
 
   // Check if page has any balance > 0 using real balance data
   const checkPageBalances = useCallback(async (pageData: any): Promise<{ hasBalance: boolean; totalBalance: number; balanceData: any[] }> => {
@@ -235,74 +281,145 @@ export default function ScannerCard({
       const nextPage = generateNextPage();
       console.log('Generated next page:', nextPage, 'from current scan page:', currentScanPageRef.current);
       
+      // Validate that nextPage can be converted to BigInt safely
+      if (!nextPage || nextPage === '' || isNaN(Number(nextPage))) {
+        console.error('Invalid page number generated:', nextPage);
+        handleStopScan();
+        return;
+      }
+      
+      // Check if the page number contains scientific notation
+      if (nextPage.includes('e') || nextPage.includes('E')) {
+        console.error('Page number in scientific notation, cannot convert to BigInt:', nextPage);
+        handleStopScan();
+        return;
+      }
+      
+      // Additional check for extremely large numbers that might cause issues
+      try {
+        const testBigInt = BigInt(nextPage);
+        if (testBigInt < 1n) {
+          console.error('Page number must be positive:', nextPage);
+          handleStopScan();
+          return;
+        }
+        
+        // Additional check: ensure the page won't generate keys beyond Bitcoin's limit
+        const maxValidPages = calculateMaxValidPages();
+        if (testBigInt > BigInt(maxValidPages)) {
+          console.error(`Page ${nextPage} exceeds Bitcoin's valid range (max: ${maxValidPages})`);
+          console.log('🔄 Scanner stopping due to page limit - this is normal for very large keysspace');
+          handleStopScan();
+          return;
+        }
+      } catch (bigIntError) {
+        console.error('Cannot convert page number to BigInt:', nextPage, bigIntError);
+        handleStopScan();
+        return;
+      }
+      
       // Update both state and ref immediately for next iteration
       setCurrentScanPage(nextPage);
       currentScanPageRef.current = nextPage;
       
       // Call API directly without updating main UI
       console.log('Calling API for page:', nextPage, 'with pageSize:', scanPageSize);
-      const response = await fetch('/api/generate-page', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          pageNumber: nextPage,
-          keysPerPage: scanPageSize 
-        }),
-      });
-
-      if (response.ok) {
-        const pageData = await response.json();
-        console.log('Received page data for page:', nextPage, 'keys:', pageData.keys?.length);
-        
-        // Check if this page has any balance > 0 using real balance API
-        const balanceResult = await checkPageBalances(pageData);
-        console.log('Balance check result:', balanceResult);
-        
-        if (balanceResult.hasBalance) {
-          console.log('Total balance found:', balanceResult.totalBalance);
-          setLastFoundBalance({ page: nextPage, balance: balanceResult.totalBalance });
-          setScanStats(prev => ({ ...prev, totalBalance: prev.totalBalance + balanceResult.totalBalance }));
+      
+      let pageData;
+      
+      if (generateLocally) {
+        // Client-side generation for scanner
+        console.log('🚀 Scanner using client-side generation');
+        try {
+          const pageBigInt = BigInt(nextPage);
+          const clientPageData = await clientKeyGenerationService.generatePage(pageBigInt, scanPageSize);
           
-          // Send notifications for found balances
-          balanceResult.balanceData.forEach(async (balanceData: any) => {
-            if (balanceData.balance > 0) {
-              // Find the corresponding private key for this address
-              const key = pageData.keys.find((k: any) => 
-                k.addresses && Object.values(k.addresses).includes(balanceData.address)
-              );
-              
-              if (key) {
-                // Get the address type
-                const addressType = Object.entries(key.addresses).find(
-                  ([_, addr]) => addr === balanceData.address
-                )?.[0] || 'unknown';
-                
-                // Send notification
-                try {
-                  await fetch('/api/notify-match', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      privateKey: key.privateKey,
-                      address: balanceData.address,
-                      balance: balanceData.balance,
-                      addressType,
-                      isSimulated: false
-                    }),
-                  });
-                } catch (error) {
-                  console.error('Failed to send notification:', error);
-                }
-              }
-            }
-          });
-          
-          // Stop scanning when funds are found
-          handleStopScan();
-          return;
+          // Convert to the same format as API response
+          pageData = {
+            pageNumber: clientPageData.pageNumber.toString(),
+            keys: clientPageData.keys.map(key => ({
+              privateKey: key.privateKey,
+              pageNumber: key.pageNumber.toString(),
+              index: key.index,
+              addresses: key.addresses,
+              balances: key.balances,
+              totalBalance: key.totalBalance,
+            })),
+            totalPageBalance: clientPageData.totalPageBalance,
+            generatedAt: clientPageData.generatedAt.toISOString(),
+            balancesFetched: clientPageData.balancesFetched,
+          };
+        } catch (error) {
+          console.error('Client-side generation failed in scanner, falling back to server:', error);
+          throw error; // Will trigger the server fallback below
         }
       } else {
-        console.error('API call failed:', response.status, response.statusText);
+        // Server-side generation (existing API call)
+        console.log('🌐 Scanner using server-side generation');
+        const response = await fetch('/api/generate-page', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            pageNumber: nextPage,
+            keysPerPage: scanPageSize 
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+        }
+
+        pageData = await response.json();
+      }
+
+      console.log('Received page data for page:', nextPage, 'keys:', pageData.keys?.length);
+        
+      // Check if this page has any balance > 0 using real balance API
+      const balanceResult = await checkPageBalances(pageData);
+      console.log('Balance check result:', balanceResult);
+      
+      if (balanceResult.hasBalance) {
+        console.log('Total balance found:', balanceResult.totalBalance);
+        setLastFoundBalance({ page: nextPage, balance: balanceResult.totalBalance });
+        setScanStats(prev => ({ ...prev, totalBalance: prev.totalBalance + balanceResult.totalBalance }));
+        
+        // Send notifications for found balances
+        balanceResult.balanceData.forEach(async (balanceData: any) => {
+          if (balanceData.balance > 0) {
+            // Find the corresponding private key for this address
+            const key = pageData.keys.find((k: any) => 
+              k.addresses && Object.values(k.addresses).includes(balanceData.address)
+            );
+            
+            if (key) {
+              // Get the address type
+              const addressType = Object.entries(key.addresses).find(
+                ([_, addr]) => addr === balanceData.address
+              )?.[0] || 'unknown';
+              
+              // Send notification
+              try {
+                await fetch('/api/notify-match', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    privateKey: key.privateKey,
+                    address: balanceData.address,
+                    balance: balanceData.balance,
+                    addressType,
+                    isSimulated: false
+                  }),
+                });
+              } catch (error) {
+                console.error('Failed to send notification:', error);
+              }
+            }
+          }
+        });
+        
+        // Stop scanning when funds are found
+        handleStopScan();
+        return;
       }
 
       // Increment pages scanned
@@ -329,7 +446,7 @@ export default function ScannerCard({
       console.error('Scan error:', error);
       handleStopScan();
     }
-  }, [generateNextPage, scanPageSize, checkPageBalances, handleStopScan, incrementPagesScanned, setScannerCurrentPage, maxPages, scanDelay]);
+  }, [generateNextPage, scanPageSize, checkPageBalances, handleStopScan, incrementPagesScanned, setScannerCurrentPage, maxPages, scanDelay, generateLocally]);
 
   // Start scanning
   const handleStartScan = useCallback(() => {
@@ -347,12 +464,21 @@ export default function ScannerCard({
     setScanStats({ totalBalance: 0, pagesPerMinute: 0, elapsedTime: 0 });
     
     console.log('Starting scan process in 1 second...');
+    
+    // Log Bitcoin limits for user information
+    const maxValidPages = calculateMaxValidPages();
+    console.log(`🚀 Scanner initialized:`);
+    console.log(`   Mode: ${generateLocally ? 'Client-side' : 'Server-side'} generation`);
+    console.log(`   Page size: ${scanPageSize} keys per page`);
+    console.log(`   Valid page range: 1 to ${maxValidPages}`);
+    console.log(`   Current totalPages: ${totalPages}`);
+    
     // Start the scanning process
     scanningIntervalRef.current = setTimeout(() => {
       console.log('Starting performScan...');
       performScan();
     }, 1000);
-  }, [currentPage, performScan]);
+  }, [currentPage, performScan, generateLocally, scanPageSize, totalPages, calculateMaxValidPages]);
 
   // Format time duration
   const formatDuration = (seconds: number): string => {
@@ -429,6 +555,24 @@ export default function ScannerCard({
 
         <AccordionDetails>
           <Box sx={{ p: 2 }}>
+            
+            {/* Generation Mode Indicator */}
+            <Box sx={{ mb: 3, p: 1.5, borderRadius: 1, bgcolor: generateLocally ? 'success.main' : 'primary.main', color: 'white' }}>
+              <Typography variant="body2" fontWeight="medium" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                {generateLocally ? (
+                  <>
+                    <Speed sx={{ fontSize: '1rem' }} />
+                    🚀 Scanner: Client-side Generation (Fast)
+                  </>
+                ) : (
+                  <>
+                    <Visibility sx={{ fontSize: '1rem' }} />
+                    🌐 Scanner: Server-side Generation (Reliable)
+                  </>
+                )}
+              </Typography>
+            </Box>
+
             {/* Auto-Navigation Mode Selection */}
             <Typography variant="subtitle1" gutterBottom>
               Auto-Navigation Mode

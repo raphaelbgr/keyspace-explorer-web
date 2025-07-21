@@ -565,6 +565,7 @@ export default function Dashboard() {
           totalPages={Number(navTotalPages)}
           onPageChange={handlePageChange}
           onDirectPageChange={handleDirectPageChange}
+          generateLocally={generateLocally}
         />
 
         {/* Balance Status - Now shows real scan data */}
