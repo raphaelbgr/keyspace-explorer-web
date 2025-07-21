@@ -25,7 +25,8 @@ import {
   IconButton,
   Tooltip,
   ToggleButtonGroup,
-  ToggleButton
+  ToggleButton,
+  Slider
 } from '@mui/material';
 import {
   ExpandMore,
@@ -37,7 +38,8 @@ import {
   TrendingUp,
   Timer,
   Speed,
-  Visibility
+  Visibility,
+  SwapHoriz
 } from '@mui/icons-material';
 import { useScannerStore } from '../store/scannerStore';
 import { useTranslation } from '../translations';
@@ -61,7 +63,7 @@ export default function ScannerCard({
 }: ScannerCardProps) {
   const t = useTranslation();
   const [expanded, setExpanded] = useState(false);
-  const [autoNavigationMode, setAutoNavigationMode] = useState<'random' | 'forward' | 'backward'>('random');
+  const [autoNavigationMode, setAutoNavigationMode] = useState<'random' | 'forward' | 'backward' | 'both-ways'>('random');
   const [scanDelay, setScanDelay] = useState(2000); // 2 seconds default
   const [maxPages, setMaxPages] = useState(100);
   const [scanPageSize, setScanPageSize] = useState(45); // Keys per page for scanning
@@ -71,10 +73,16 @@ export default function ScannerCard({
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [currentScanPage, setCurrentScanPage] = useState<string>(currentPage);
   const [lastFoundBalance, setLastFoundBalance] = useState<any>(null);
+  
+  // New state for keyspace position and performance tracking
+  const [keyspacePosition, setKeyspacePosition] = useState<number>(0.0); // Percentage with high precision
+  const [addressesPerSecond, setAddressesPerSecond] = useState<number>(0);
+  
   const [scanStats, setScanStats] = useState({
     totalBalance: 0,
     pagesPerMinute: 0,
-    elapsedTime: 0
+    elapsedTime: 0,
+    totalAddressesScanned: 0
   });
 
   // Use refs to track current values in closures
@@ -110,17 +118,20 @@ export default function ScannerCard({
         const now = new Date();
         const elapsed = (now.getTime() - startTime.getTime()) / 1000; // seconds
         const pagesPerMinute = elapsed > 0 ? (pagesScanned / elapsed) * 60 : 0;
+        const addressesPerSec = elapsed > 0 ? Math.round(scanStats.totalAddressesScanned / elapsed) : 0;
         
         setScanStats(prev => ({
           ...prev,
           elapsedTime: elapsed,
           pagesPerMinute
         }));
+        
+        setAddressesPerSecond(addressesPerSec);
       }, 1000);
 
       return () => clearInterval(interval);
     }
-  }, [isScanning, startTime, pagesScanned]);
+  }, [isScanning, startTime, pagesScanned, scanStats.totalAddressesScanned]);
 
   // Calculate maximum valid pages based on Bitcoin's private key limit
   const calculateMaxValidPages = useCallback((): string => {
@@ -135,6 +146,47 @@ export default function ScannerCard({
     return maxPageBigInt.toString();
   }, [scanPageSize]);
 
+  // Convert page number to keyspace position percentage (0-100 with high precision)
+  const pageToKeypacePosition = useCallback((pageNumber: string): number => {
+    try {
+      const maxValidPages = calculateMaxValidPages();
+      const pageDecimal = new Decimal(pageNumber);
+      const maxPagesDecimal = new Decimal(maxValidPages);
+      
+      // Calculate percentage: (page - 1) / (maxPages - 1) * 100
+      const positionDecimal = pageDecimal.minus(1).dividedBy(maxPagesDecimal.minus(1)).times(100);
+      return positionDecimal.toNumber();
+    } catch (error) {
+      console.error('Error calculating keyspace position:', error);
+      return 0;
+    }
+  }, [calculateMaxValidPages]);
+
+  // Convert keyspace position percentage to page number
+  const keyspacePositionToPage = useCallback((percentage: number): string => {
+    try {
+      const maxValidPages = calculateMaxValidPages();
+      const maxPagesDecimal = new Decimal(maxValidPages);
+      const percentageDecimal = new Decimal(percentage);
+      
+      // Calculate page: (percentage / 100) * (maxPages - 1) + 1
+      const pageDecimal = percentageDecimal.dividedBy(100).times(maxPagesDecimal.minus(1)).plus(1);
+      return pageDecimal.floor().toFixed(0);
+    } catch (error) {
+      console.error('Error calculating page from keyspace position:', error);
+      return '1';
+    }
+  }, [calculateMaxValidPages]);
+
+  // Calculate addresses per second
+  const calculateAddressesPerSecond = useCallback(() => {
+    if (!startTime || scanStats.elapsedTime === 0) return 0;
+    
+    const totalAddresses = scanStats.totalAddressesScanned;
+    const seconds = scanStats.elapsedTime;
+    return Math.round(totalAddresses / seconds);
+  }, [startTime, scanStats.elapsedTime, scanStats.totalAddressesScanned]);
+
   // Generate next page based on navigation mode
   const generateNextPage = useCallback((): string => {
     const currentPageDecimal = new Decimal(currentScanPageRef.current);
@@ -147,14 +199,43 @@ export default function ScannerCard({
     // Use the smaller of totalPages or maxValidPages to ensure we stay within Bitcoin's limits
     const effectiveMaxPages = totalPagesDecimal.lt(maxValidPagesDecimal) ? totalPagesDecimal : maxValidPagesDecimal;
 
+    let nextPage: string;
+
     switch (autoNavigationMode) {
       case 'forward':
-        const nextPage = currentPageDecimal.plus(1);
-        return nextPage.lte(effectiveMaxPages) ? nextPage.toFixed(0) : '1';
+        const forwardPage = currentPageDecimal.plus(1);
+        nextPage = forwardPage.lte(effectiveMaxPages) ? forwardPage.toFixed(0) : '1';
+        break;
       
       case 'backward':
-        const prevPage = currentPageDecimal.minus(1);
-        return prevPage.gte(1) ? prevPage.toFixed(0) : effectiveMaxPages.toFixed(0);
+        const backwardPage = currentPageDecimal.minus(1);
+        nextPage = backwardPage.gte(1) ? backwardPage.toFixed(0) : effectiveMaxPages.toFixed(0);
+        break;
+
+      case 'both-ways':
+        // Both-ways mode: scan range around selected keyspace position
+        const centerPage = keyspacePositionToPage(keyspacePosition);
+        const centerPageDecimal = new Decimal(centerPage);
+        const halfRange = new Decimal(maxPages).dividedBy(2);
+        
+        // Calculate current scan step within the range
+        const rangeStart = centerPageDecimal.minus(halfRange).gt(1) ? centerPageDecimal.minus(halfRange) : new Decimal(1);
+        const rangeEnd = centerPageDecimal.plus(halfRange).lt(effectiveMaxPages) ? centerPageDecimal.plus(halfRange) : effectiveMaxPages;
+        
+        // Alternate between forward and backward from center
+        const isForwardScan = pagesScannedRef.current % 2 === 0;
+        const stepSize = Math.floor(pagesScannedRef.current / 2) + 1;
+        
+        if (isForwardScan) {
+          const forwardTarget = centerPageDecimal.plus(stepSize);
+          nextPage = forwardTarget.lte(rangeEnd) ? forwardTarget.toFixed(0) : rangeStart.toFixed(0);
+        } else {
+          const backwardTarget = centerPageDecimal.minus(stepSize);
+          nextPage = backwardTarget.gte(rangeStart) ? backwardTarget.toFixed(0) : rangeEnd.toFixed(0);
+        }
+        
+        console.log(`🔄 Both-ways scan: center=${centerPage}, range=[${rangeStart.toFixed(0)}-${rangeEnd.toFixed(0)}], step=${stepSize}, direction=${isForwardScan ? 'forward' : 'backward'}, next=${nextPage}`);
+        break;
       
       case 'random':
       default:
@@ -173,22 +254,31 @@ export default function ScannerCard({
           
           // Ensure the result is within valid range
           if (randomPageDecimal.lte(0)) {
-            return '1';
-          }
-          if (randomPageDecimal.gt(effectiveMaxPages)) {
-            return effectiveMaxPages.toFixed(0);
+            nextPage = '1';
+          } else if (randomPageDecimal.gt(effectiveMaxPages)) {
+            nextPage = effectiveMaxPages.toFixed(0);
+          } else {
+            nextPage = randomPageDecimal.toFixed(0);
           }
           
-          console.log(`🎲 Random page generated: ${randomPageDecimal.toFixed(0)} (max valid: ${maxValidPages})`);
-          return randomPageDecimal.toFixed(0);
+          console.log(`🎲 Random page generated: ${nextPage} (max valid: ${maxValidPages})`);
         } catch (error) {
           console.error('Random page generation error:', error);
           // Fallback to a safe range that definitely won't exceed Bitcoin limits
           const fallbackRandom = Math.floor(Math.random() * 1000000) + 1;
-          return fallbackRandom.toString();
+          nextPage = fallbackRandom.toString();
         }
+        break;
     }
-  }, [totalPages, autoNavigationMode, calculateMaxValidPages]);
+
+    // Update keyspace position for display (except in forward/backward modes where user controls it)
+    if (autoNavigationMode === 'random') {
+      const newPosition = pageToKeypacePosition(nextPage);
+      setKeyspacePosition(newPosition);
+    }
+
+    return nextPage;
+  }, [totalPages, autoNavigationMode, calculateMaxValidPages, keyspacePosition, keyspacePositionToPage, maxPages, pageToKeypacePosition]);
 
   // Check if page has any balance > 0 using real balance data
   const checkPageBalances = useCallback(async (pageData: any): Promise<{ hasBalance: boolean; totalBalance: number; balanceData: any[] }> => {
@@ -374,6 +464,13 @@ export default function ScannerCard({
 
       console.log('Received page data for page:', nextPage, 'keys:', pageData.keys?.length);
         
+      // Track addresses scanned for performance metrics
+      const addressesInThisPage = pageData.keys ? pageData.keys.length * 5 : 0; // 5 addresses per key
+      setScanStats(prev => ({
+        ...prev,
+        totalAddressesScanned: prev.totalAddressesScanned + addressesInThisPage
+      }));
+      
       // Check if this page has any balance > 0 using real balance API
       const balanceResult = await checkPageBalances(pageData);
       console.log('Balance check result:', balanceResult);
@@ -461,7 +558,7 @@ export default function ScannerCard({
     setCurrentScanPage(currentPage);
     currentScanPageRef.current = currentPage;
     setLastFoundBalance(null);
-    setScanStats({ totalBalance: 0, pagesPerMinute: 0, elapsedTime: 0 });
+    setScanStats({ totalBalance: 0, pagesPerMinute: 0, elapsedTime: 0, totalAddressesScanned: 0 });
     
     console.log('Starting scan process in 1 second...');
     
@@ -507,6 +604,12 @@ export default function ScannerCard({
                   icon={<Speed />}
                   label={`${scanStats.pagesPerMinute.toFixed(1)} pages/min`}
                   color="primary"
+                  size="small"
+                />
+                <Chip 
+                  icon={<TrendingUp />}
+                  label={`${addressesPerSecond} addr/sec`}
+                  color="success"
                   size="small"
                 />
                 <Chip 
@@ -595,7 +698,69 @@ export default function ScannerCard({
                 <ArrowBack sx={{ mr: 1 }} />
                 Backward
               </ToggleButton>
+              <ToggleButton value="both-ways">
+                <SwapHoriz sx={{ mr: 1 }} />
+                Both Ways
+              </ToggleButton>
             </ToggleButtonGroup>
+
+            {/* Keyspace Position Slider */}
+            <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
+              Keyspace Position
+            </Typography>
+            <Box sx={{ mb: 3, px: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                {autoNavigationMode === 'random' 
+                  ? 'Current position in Bitcoin keyspace (read-only)'
+                  : autoNavigationMode === 'both-ways'
+                  ? 'Center point for bidirectional scanning'
+                  : 'Starting position for scanning'
+                }
+              </Typography>
+              <Slider
+                value={keyspacePosition}
+                onChange={(_, value) => {
+                  if (autoNavigationMode !== 'random') {
+                    setKeyspacePosition(value as number);
+                    // Update current scan page based on new position for forward/backward modes
+                    if (autoNavigationMode === 'forward' || autoNavigationMode === 'backward') {
+                      const newPage = keyspacePositionToPage(value as number);
+                      setCurrentScanPage(newPage);
+                      currentScanPageRef.current = newPage;
+                    }
+                  }
+                }}
+                disabled={autoNavigationMode === 'random' || isScanning}
+                min={0}
+                max={100}
+                step={0.0001} // High precision for percentage
+                valueLabelDisplay="on"
+                valueLabelFormat={(value) => `${value.toFixed(4)}%`}
+                sx={{
+                  '& .MuiSlider-thumb': {
+                    bgcolor: autoNavigationMode === 'random' ? 'info.main' : 
+                             autoNavigationMode === 'both-ways' ? 'warning.main' : 'primary.main'
+                  },
+                  '& .MuiSlider-track': {
+                    bgcolor: autoNavigationMode === 'random' ? 'info.main' : 
+                             autoNavigationMode === 'both-ways' ? 'warning.main' : 'primary.main'
+                  }
+                }}
+              />
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                <Typography variant="caption" color="text.secondary">
+                  0.0000% (Start)
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
+                  Page: {autoNavigationMode === 'both-ways' 
+                    ? keyspacePositionToPage(keyspacePosition) 
+                    : currentScanPage}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  100.0000% (End)
+                </Typography>
+              </Box>
+            </Box>
 
             <Divider sx={{ my: 2 }} />
 

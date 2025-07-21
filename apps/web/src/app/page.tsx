@@ -596,11 +596,23 @@ export default function Dashboard() {
             backdropFilter: 'blur(10px)' 
           }}>
               <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-                  <Typography variant="h5" component="h2">
+                <Box sx={{ mb: 3 }}>
+                  {/* Page number on its own line */}
+                  <Typography 
+                    variant="h5" 
+                    component="h2" 
+                    sx={{ 
+                      mb: 2, 
+                      wordBreak: 'break-all', 
+                      lineHeight: 1.2,
+                      fontFamily: 'monospace'
+                    }}
+                  >
                     {formatTranslation(t.pageResults, { page: pageData.pageNumber })}
                   </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                  
+                  {/* Indicators always on the line below */}
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                     <Chip 
                       label={`${pageData.keys.length} ${t.keys}`} 
                       color="primary" 
