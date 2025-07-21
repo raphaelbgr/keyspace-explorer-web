@@ -65,8 +65,7 @@ A sophisticated web application for exploring the Bitcoin private key space with
 
 
 ### 🎯 Grid View - Rich Card Display
-![Grid View](<img width="1280" height="1160" alt="image" src="https://github.com/user-attachments/assets/00c40cb2-405b-4732-884c-8bb259371acf" />
-)
+<img width="512" height="450" alt="image" src="https://github.com/user-attachments/assets/00c40cb2-405b-4732-884c-8bb259371acf" />
 
 The **Grid View** provides a comprehensive card-based interface featuring:
 - **Balance Overview**: Total page balance prominently displayed (2.50000000 BTC shown)
