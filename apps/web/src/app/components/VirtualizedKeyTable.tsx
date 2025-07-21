@@ -3,25 +3,22 @@ import { Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, Tab
 import KeyTableRow from './KeyTableRow';
 
 interface VirtualizedKeyTableProps {
-  keys: any[];
-  keysPerPage: number;
-  currentKeysPage: number;
+  visibleKeys: any[];
   expandedKeys: Set<number>;
   onToggleExpansion: (keyIndex: number) => void;
+  keysPerPage: number;
+  currentKeysPage: number;
+  pageData?: any; // Add pageData for absolute key number calculation
 }
 
 const VirtualizedKeyTable = memo<VirtualizedKeyTableProps>(({
-  keys,
+  visibleKeys,
+  expandedKeys,
+  onToggleExpansion,
   keysPerPage,
   currentKeysPage,
-  expandedKeys,
-  onToggleExpansion
+  pageData
 }) => {
-  // Only render visible items (first 15 for performance)
-  const visibleKeys = useMemo(() => {
-    return keys.slice(0, 15);
-  }, [keys]);
-
   return (
     <Box sx={{ overflow: 'auto' }}>
       <TableContainer component={Paper} sx={{ background: 'transparent' }}>
@@ -39,12 +36,14 @@ const VirtualizedKeyTable = memo<VirtualizedKeyTableProps>(({
           <TableBody>
             {visibleKeys.map((key, index) => (
               <KeyTableRow
+                key={index}
                 keyData={key}
                 index={index}
                 isExpanded={expandedKeys.has((currentKeysPage - 1) * keysPerPage + index)}
                 onToggleExpansion={() => onToggleExpansion((currentKeysPage - 1) * keysPerPage + index)}
                 keysPerPage={keysPerPage}
                 currentKeysPage={currentKeysPage}
+                pageData={pageData}
               />
             ))}
           </TableBody>

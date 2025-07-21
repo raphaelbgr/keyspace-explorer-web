@@ -29,12 +29,14 @@ interface KeyTableRowProps {
       p2sh_p2wpkh: string;
       p2tr: string;
     };
+    index: number; // Add index from the key data
   };
   index: number;
   isExpanded: boolean;
   onToggleExpansion: () => void;
   keysPerPage: number;
   currentKeysPage: number;
+  pageData?: any; // Add pageData to access keyspace page number
 }
 
 const KeyTableRow = memo<KeyTableRowProps>(({ 
@@ -43,9 +45,14 @@ const KeyTableRow = memo<KeyTableRowProps>(({
   isExpanded, 
   onToggleExpansion, 
   keysPerPage, 
-  currentKeysPage 
+  currentKeysPage,
+  pageData 
 }) => {
-  const keyNumber = index + 1 + (currentKeysPage - 1) * keysPerPage;
+  // Calculate absolute key number in Bitcoin keyspace (not relative to UI pagination)
+  const keyspacePageNumber = pageData?.pageNumber || '1';
+  const keysPerKeyspacePage = pageData?.keys?.length || 45; // Use actual keys per page from backend
+  const keyNumber = ((BigInt(keyspacePageNumber) - BigInt(1)) * BigInt(keysPerKeyspacePage)) + BigInt(keyData.index || index) + BigInt(1);
+  
   const { copy } = useCopyToClipboard();
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   
@@ -74,11 +81,9 @@ const KeyTableRow = memo<KeyTableRowProps>(({
   return (
     <>
       <TableRow>
-        <TableCell>{keyNumber}</TableCell>
-        <TableCell>
-          <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.75rem' }}>
-            {keyData.privateKey.substring(0, 16)}...
-          </Typography>
+        <TableCell>{keyNumber.toString()}</TableCell>
+        <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+          {keyData.privateKey}
         </TableCell>
         <TableCell>
           <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.7rem' }}>

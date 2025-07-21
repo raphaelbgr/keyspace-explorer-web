@@ -120,8 +120,10 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
             </TableHead>
             <TableBody>
               {optimizedKeys.map((key, index) => {
-                // Use the actual key number from the backend data (1-based)
-                const keyNumber = Decimal(currentKeysPage).minus(1).times(keysPerPage).plus(key.index).plus(1).toFixed(0);
+                // Calculate absolute key number in Bitcoin keyspace (not relative to UI pagination)
+                const keyspacePageNumber = pageData?.pageNumber || '1';
+                const keysPerKeyspacePage = pageData?.keys?.length || 45; // Use actual keys per page from backend
+                const keyNumber = Decimal(keyspacePageNumber).minus(1).times(keysPerKeyspacePage).plus(key.index).plus(1).toFixed(0);
                 const globalIndex = (currentKeysPage - 1) * keysPerPage + index;
                 const isExpanded = expandedKeys.has(globalIndex);
                 const isLoadingAddresses = loadingAddresses.has(globalIndex);
