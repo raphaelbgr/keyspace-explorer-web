@@ -223,14 +223,27 @@ const AdvancedNavigation = ({
         <Typography variant="h6">Advanced Navigation</Typography>
       </AccordionSummary>
       <AccordionDetails>
-        {/* Basic Navigation */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 3, gap: 1 }}>
+        {/* Reorganized Navigation - Page Display First */}
+        
+        {/* Current Page Display - Always stays in same place */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+          <Chip 
+            label={`Page ${formatPageNumber(currentPage)} of ${totalPages}`} 
+            color="primary" 
+            variant="outlined"
+            sx={{ fontSize: '0.9rem', px: 2, py: 0.5 }}
+          />
+        </Box>
+
+        {/* Navigation Buttons Row - Stable positioning */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 2, gap: 1 }}>
           <Tooltip title={translations.firstPage} arrow>
             <span>
               <IconButton
                 onClick={() => onPageChange('1')}
                 disabled={currentPage === 1}
                 size="small"
+                color="primary"
               >
                 <ChevronLeft />
               </IconButton>
@@ -247,17 +260,16 @@ const AdvancedNavigation = ({
                 }}
                 disabled={parsePageNumberToDecimal(currentPage).lte(1)}
                 size="small"
+                color="primary"
               >
                 <ChevronLeft />
               </IconButton>
             </span>
           </Tooltip>
           
-          <Chip 
-            label={`Page ${formatPageNumber(currentPage)} of ${totalPages}`} 
-            color="primary" 
-            variant="outlined"
-          />
+          <Typography variant="body2" color="text.secondary" sx={{ mx: 2 }}>
+            Navigate
+          </Typography>
           
           <Tooltip title={translations.nextPage} arrow>
             <span>
@@ -269,6 +281,7 @@ const AdvancedNavigation = ({
                 }}
                 disabled={parsePageNumberToDecimal(currentPage).gte(totalPages)}
                 size="small"
+                color="primary"
               >
                 <ChevronRight />
               </IconButton>
@@ -281,40 +294,45 @@ const AdvancedNavigation = ({
                 onClick={() => onPageChange(getLastPageNumber())}
                 disabled={currentPage === totalPages}
                 size="small"
+                color="primary"
               >
                 <ChevronRight />
               </IconButton>
             </span>
           </Tooltip>
-          
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Select
+        </Box>
+
+        {/* Random Controls Row - Always in same spot */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 3, gap: 1 }}>
+          <Select
+            size="small"
+            value={randomMode}
+            onChange={(e: any) => setRandomMode(e.target.value as 'page' | 'key')}
+            sx={{ minWidth: 80 }}
+          >
+            <MenuItem value="page">Page</MenuItem>
+            <MenuItem value="key">Key</MenuItem>
+          </Select>
+          <Tooltip title={`Random ${randomMode === 'page' ? 'Page' : 'Key in Current Page'}`} arrow>
+            <IconButton
+              onClick={handleDiceRoll}
+              color="secondary"
               size="small"
-              value={randomMode}
-              onChange={(e: any) => setRandomMode(e.target.value as 'page' | 'key')}
-              sx={{ minWidth: 80 }}
+              disabled={diceRolling}
+              sx={{
+                animation: diceRolling ? 'spin 0.3s linear infinite' : 'none',
+                '@keyframes spin': {
+                  '0%': { transform: 'rotate(0deg)' },
+                  '100%': { transform: 'rotate(360deg)' },
+                },
+              }}
             >
-              <MenuItem value="page">Page</MenuItem>
-              <MenuItem value="key">Key</MenuItem>
-            </Select>
-            <Tooltip title={`Random ${randomMode === 'page' ? 'Page' : 'Key in Current Page'}`} arrow>
-              <IconButton
-                onClick={handleDiceRoll}
-                color="secondary"
-                size="small"
-                disabled={diceRolling}
-                sx={{
-                  animation: diceRolling ? 'spin 0.3s linear infinite' : 'none',
-                  '@keyframes spin': {
-                    '0%': { transform: 'rotate(0deg)' },
-                    '100%': { transform: 'rotate(360deg)' },
-                  },
-                }}
-              >
-                <Casino />
-              </IconButton>
-            </Tooltip>
-          </Box>
+              <Casino />
+            </IconButton>
+          </Tooltip>
+          <Typography variant="caption" color="text.secondary">
+            🎲 Random {randomMode}
+          </Typography>
         </Box>
 
         <Divider sx={{ mb: 2 }} />
