@@ -77,7 +77,7 @@ The **Grid View** provides a comprehensive card-based interface featuring:
 - **Visual Hierarchy**: Clean, modern card design with clear data organization
 
 ### 🔍 Address Details Modal
-![Address Details Modal](<img width="1280" height="976" alt="image" src="https://github.com/user-attachments/assets/a899def7-f476-4e43-841a-4e7652d3a653" />)
+!(<img width="1280" height="976" alt="image" src="https://github.com/user-attachments/assets/a899def7-f476-4e43-841a-4e7652d3a653" />)
 
 The **Address Details Modal** provides in-depth information:
 - **Private Key Display**: Full 64-character hexadecimal private key with copy functionality
