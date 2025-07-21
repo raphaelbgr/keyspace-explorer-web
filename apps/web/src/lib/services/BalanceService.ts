@@ -2,6 +2,7 @@ import axios from 'axios';
 import { BalanceRepository } from './BalanceRepository';
 import { BalanceCache } from '../types/keys';
 import { BitcoinAddressValidator } from '../utils/addressValidation';
+import { databaseService } from './DatabaseService';
 
 export class BalanceService {
   private balanceRepository: BalanceRepository;
@@ -14,7 +15,7 @@ export class BalanceService {
 
   async fetchBalances(
     addresses: string[], 
-    source: 'blockstream' | 'local' = 'blockstream'
+    source: 'local' | 'blockstream' = 'local'
   ): Promise<Record<string, number>> {
     const balances: Record<string, number> = {};
     
@@ -44,10 +45,33 @@ export class BalanceService {
 
   private async fetchBatchBalances(
     addresses: string[], 
-    source: 'blockstream' | 'local'
+    source: 'local' | 'blockstream'
   ): Promise<Record<string, number>> {
     const balances: Record<string, number> = {};
     
+    if (source === 'local') {
+      // For local database, use batch processing for much better performance
+      try {
+        const balanceData = await databaseService.getBalances(addresses);
+        
+        // Convert to the expected format
+        for (const address of addresses) {
+          const data = balanceData[address];
+          balances[address] = data ? data.balance : 0;
+        }
+        
+        return balances;
+      } catch (error) {
+        console.error('Database batch query error:', error);
+        // Fallback to zero balances
+        addresses.forEach(address => {
+          balances[address] = 0;
+        });
+        return balances;
+      }
+    }
+    
+    // For external APIs, process individually with caching
     for (const address of addresses) {
       try {
         // Check cache first (only if database is available)
@@ -61,12 +85,10 @@ export class BalanceService {
           console.warn('Database cache unavailable, proceeding with external API:', dbError);
         }
         
-        // Fetch from source
+        // Fetch from external source
         let balance = 0;
         if (source === 'blockstream') {
           balance = await this.fetchFromBlockstream(address);
-        } else {
-          balance = await this.fetchFromLocal(address);
         }
         
         // Cache the result (only if database is available)

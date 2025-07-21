@@ -46,10 +46,9 @@ interface KeyspaceSliderProps {
   disabled?: boolean;
 }
 
-// Slider granularity: Use 10x the total number of pages for enhanced precision
-// This provides 10 sub-steps per page for ultra-fine navigation
-const TOTAL_PAGES = new Decimal('2573157538607026564968244111304175730063056983979442319613448069811514699875');
-const SLIDER_MAX = TOTAL_PAGES.times(10);
+// Use a reasonable slider range with logarithmic scaling for the huge keyspace
+// This prevents precision issues while still allowing navigation
+const SLIDER_MAX = 1000000; // 1 million steps for smooth sliding
 
 export default function KeyspaceSlider({ 
   currentPage, // string, can be BigInt
@@ -67,25 +66,46 @@ export default function KeyspaceSlider({
   const totalPagesDecimal = new Decimal(totalPages.toString());
   const currentPageDecimal = parsePageNumberToDecimal(currentPage);
 
-  // Convert currentPage to slider position [0, SLIDER_MAX]
+  // Convert currentPage to slider position [0, SLIDER_MAX] using logarithmic scaling
   const getSliderValueFromPage = useCallback((pageStr: string) => {
     try {
       const page = new Decimal(pageStr);
       // Clamp page to [1, totalPages]
       const clamped = Decimal.max(1, Decimal.min(page, totalPagesDecimal));
-      // With 10x granularity: slider value = (page number - 1) * 10
-      return clamped.minus(1).times(10).toNumber();
+      
+      // Use logarithmic scaling: position = log(page) / log(totalPages) * SLIDER_MAX
+      if (clamped.lte(1)) return 0;
+      
+      const logPage = Decimal.ln(clamped);
+      const logTotal = Decimal.ln(totalPagesDecimal);
+      const position = logPage.dividedBy(logTotal).times(SLIDER_MAX);
+      
+      return Math.min(SLIDER_MAX, Math.max(0, position.toNumber()));
     } catch {
       return 0;
     }
   }, [totalPagesDecimal]);
 
-  // Convert slider value [0, SLIDER_MAX] to page string
+  // Convert slider value [0, SLIDER_MAX] to page string using logarithmic scaling
   const getPageFromSliderValue = useCallback((sliderVal: number) => {
-    // With 10x granularity: page = (slider value / 10) + 1
-    const page = new Decimal(sliderVal).dividedBy(10).plus(1);
-    const clamped = Decimal.max(1, Decimal.min(page, totalPagesDecimal));
-    return clamped.toFixed(0);
+    try {
+      // Clamp slider value
+      const clampedSlider = Math.min(SLIDER_MAX, Math.max(0, sliderVal));
+      
+      if (clampedSlider === 0) return '1';
+      
+      // Reverse logarithmic scaling: page = totalPages^(sliderVal/SLIDER_MAX)
+      const ratio = new Decimal(clampedSlider).dividedBy(SLIDER_MAX);
+      const logTotal = Decimal.ln(totalPagesDecimal);
+      const logPage = ratio.times(logTotal);
+      const page = Decimal.exp(logPage);
+      
+      const clamped = Decimal.max(1, Decimal.min(page, totalPagesDecimal));
+      return clamped.toFixed(0);
+    } catch (error) {
+      console.warn('Error in getPageFromSliderValue:', error);
+      return '1';
+    }
   }, [totalPagesDecimal]);
 
   // Update slider value when currentPage changes
@@ -98,17 +118,30 @@ export default function KeyspaceSlider({
 
   const handleSliderChange = useCallback((event: Event, newValue: number | number[]) => {
     const value = Array.isArray(newValue) ? newValue[0] : newValue;
-    setSliderValue(value);
+    // Add safety bounds to prevent astronomical numbers
+    const clampedValue = Math.min(SLIDER_MAX, Math.max(0, value));
+    setSliderValue(clampedValue);
   }, []);
 
   const handleSliderChangeCommitted = useCallback((event: Event | React.SyntheticEvent, newValue: number | number[]) => {
     const value = Array.isArray(newValue) ? newValue[0] : newValue;
     setIsDragging(false);
-    const pageStr = getPageFromSliderValue(value);
-    if (pageStr !== currentPage) {
-      onPageChange(pageStr);
+    
+    // Add safety bounds to prevent astronomical numbers
+    const clampedValue = Math.min(SLIDER_MAX, Math.max(0, value));
+    const pageStr = getPageFromSliderValue(clampedValue);
+    
+    // Additional validation to ensure page is reasonable
+    try {
+      const pageNum = new Decimal(pageStr);
+      if (pageNum.gte(1) && pageNum.lte(totalPagesDecimal) && pageStr !== currentPage) {
+        onPageChange(pageStr);
+      }
+    } catch (error) {
+      console.warn('Invalid page generated from slider:', pageStr, error);
+      // Don't change page if invalid
     }
-  }, [currentPage, onPageChange, getPageFromSliderValue]);
+  }, [currentPage, onPageChange, getPageFromSliderValue, totalPagesDecimal]);
 
   const handleSliderChangeStart = useCallback(() => {
     setIsDragging(true);
@@ -213,7 +246,7 @@ export default function KeyspaceSlider({
 
       <Box sx={{ px: 2, mb: 2 }}>
         <Tooltip 
-          title={`Drag to navigate to page ${isDragging ? sliderValue : formatNumber(currentPage)}`}
+          title={`Drag to navigate to page ${isDragging ? formatNumber(getPageFromSliderValue(sliderValue)) : formatNumber(currentPage)}`}
           arrow
           open={!!isDragging}
         >

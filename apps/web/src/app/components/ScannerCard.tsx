@@ -62,6 +62,7 @@ export default function ScannerCard({
   const [scanDelay, setScanDelay] = useState(2000); // 2 seconds default
   const [maxPages, setMaxPages] = useState(100);
   const [scanPageSize, setScanPageSize] = useState(45); // Keys per page for scanning
+  const [balanceApiSource, setBalanceApiSource] = useState<'local' | 'blockstream' | 'blockcypher' | 'mempool'>('local');
   const [isScanning, setIsScanning] = useState(false);
   const [pagesScanned, setPagesScanned] = useState(0);
   const [startTime, setStartTime] = useState<Date | null>(null);
@@ -143,18 +144,69 @@ export default function ScannerCard({
     }
   }, [totalPages, autoNavigationMode]);
 
-  // Check if page has any balance > 0
-  const hasBalance = useCallback((pageData: any): boolean => {
-    if (!pageData || !pageData.keys) return false;
+  // Check if page has any balance > 0 using real balance data
+  const checkPageBalances = useCallback(async (pageData: any): Promise<{ hasBalance: boolean; totalBalance: number; balanceData: any[] }> => {
+    if (!pageData || !pageData.keys) {
+      return { hasBalance: false, totalBalance: 0, balanceData: [] };
+    }
     
-    return pageData.keys.some((key: any) => {
-      if (!key.addresses) return false;
-      
-      return Object.values(key.addresses).some((address: any) => {
-        return address && typeof address === 'object' && address.balance > 0;
+    try {
+      // Extract all addresses from all keys
+      const addresses: string[] = [];
+      pageData.keys.forEach((key: any) => {
+        if (key.addresses) {
+          Object.values(key.addresses).forEach((address: any) => {
+            if (typeof address === 'string') {
+              addresses.push(address);
+            }
+          });
+        }
       });
-    });
-  }, []);
+      
+      if (addresses.length === 0) {
+        return { hasBalance: false, totalBalance: 0, balanceData: [] };
+      }
+      
+      console.log(`Checking balances for ${addresses.length} addresses on page ${pageData.pageNumber}`);
+      
+      // Call real balance API using selected source
+      const response = await fetch('/api/balances', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          addresses, 
+          source: balanceApiSource
+        }),
+      });
+      
+      if (!response.ok) {
+        console.error('Balance API call failed:', response.status, response.statusText);
+        return { hasBalance: false, totalBalance: 0, balanceData: [] };
+      }
+      
+      const balanceResponse = await response.json();
+      const balances = balanceResponse.balances || [];
+      
+      // Calculate total balance and check if any > 0
+      let totalBalance = 0;
+      let hasBalance = false;
+      
+      balances.forEach((balanceData: any) => {
+        if (balanceData.balance > 0) {
+          totalBalance += balanceData.balance;
+          hasBalance = true;
+        }
+      });
+      
+      console.log(`Balance check complete: ${hasBalance ? 'FOUND' : 'NO'} balance(s). Total: ${totalBalance} BTC`);
+      
+      return { hasBalance, totalBalance, balanceData: balances };
+      
+    } catch (error) {
+      console.error('Error checking page balances:', error);
+      return { hasBalance: false, totalBalance: 0, balanceData: [] };
+    }
+  }, [balanceApiSource]);
 
   // Stop scanning
   const handleStopScan = useCallback(() => {
@@ -202,24 +254,48 @@ export default function ScannerCard({
         const pageData = await response.json();
         console.log('Received page data for page:', nextPage, 'keys:', pageData.keys?.length);
         
-        // Check if this page has any balance > 0
-        const foundBalance = hasBalance(pageData);
-        console.log('Found balance on page:', foundBalance);
+        // Check if this page has any balance > 0 using real balance API
+        const balanceResult = await checkPageBalances(pageData);
+        console.log('Balance check result:', balanceResult);
         
-        if (foundBalance) {
-          // Calculate total balance
-          const totalBalance = pageData.keys.reduce((total: number, key: any) => {
-            if (key.addresses) {
-              return total + Object.values(key.addresses).reduce((keyTotal: number, address: any) => {
-                return keyTotal + (address?.balance || 0);
-              }, 0);
+        if (balanceResult.hasBalance) {
+          console.log('Total balance found:', balanceResult.totalBalance);
+          setLastFoundBalance({ page: nextPage, balance: balanceResult.totalBalance });
+          setScanStats(prev => ({ ...prev, totalBalance: prev.totalBalance + balanceResult.totalBalance }));
+          
+          // Send notifications for found balances
+          balanceResult.balanceData.forEach(async (balanceData: any) => {
+            if (balanceData.balance > 0) {
+              // Find the corresponding private key for this address
+              const key = pageData.keys.find((k: any) => 
+                k.addresses && Object.values(k.addresses).includes(balanceData.address)
+              );
+              
+              if (key) {
+                // Get the address type
+                const addressType = Object.entries(key.addresses).find(
+                  ([_, addr]) => addr === balanceData.address
+                )?.[0] || 'unknown';
+                
+                // Send notification
+                try {
+                  await fetch('/api/notify-match', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      privateKey: key.privateKey,
+                      address: balanceData.address,
+                      balance: balanceData.balance,
+                      addressType,
+                      isSimulated: false
+                    }),
+                  });
+                } catch (error) {
+                  console.error('Failed to send notification:', error);
+                }
+              }
             }
-            return total;
-          }, 0);
-
-          console.log('Total balance found:', totalBalance);
-          setLastFoundBalance({ page: nextPage, balance: totalBalance });
-          setScanStats(prev => ({ ...prev, totalBalance: prev.totalBalance + totalBalance }));
+          });
           
           // Stop scanning when funds are found
           handleStopScan();
@@ -253,7 +329,7 @@ export default function ScannerCard({
       console.error('Scan error:', error);
       handleStopScan();
     }
-  }, [generateNextPage, scanPageSize, hasBalance, handleStopScan, incrementPagesScanned, setScannerCurrentPage, maxPages, scanDelay]);
+  }, [generateNextPage, scanPageSize, checkPageBalances, handleStopScan, incrementPagesScanned, setScannerCurrentPage, maxPages, scanDelay]);
 
   // Start scanning
   const handleStartScan = useCallback(() => {
@@ -381,7 +457,7 @@ export default function ScannerCard({
 
             {/* Scan Configuration */}
             <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={3}>
                 <TextField
                   fullWidth
                   label="Keys per Page"
@@ -393,7 +469,7 @@ export default function ScannerCard({
                   inputProps={{ min: 1, max: 10000 }}
                 />
               </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={3}>
                 <TextField
                   fullWidth
                   label="Scan Delay (ms)"
@@ -405,7 +481,7 @@ export default function ScannerCard({
                   inputProps={{ min: 100, max: 60000 }}
                 />
               </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={3}>
                 <TextField
                   fullWidth
                   label="Max Pages to Scan"
@@ -416,6 +492,21 @@ export default function ScannerCard({
                   disabled={isScanning}
                   inputProps={{ min: 1, max: 100000 }}
                 />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <FormControl fullWidth disabled={isScanning}>
+                  <InputLabel>Balance API</InputLabel>
+                  <Select
+                    value={balanceApiSource}
+                    onChange={(e) => setBalanceApiSource(e.target.value as 'local' | 'blockstream' | 'blockcypher' | 'mempool')}
+                    label="Balance API"
+                  >
+                    <MenuItem value="local">Local Database (Fast)</MenuItem>
+                    <MenuItem value="blockstream">Blockstream (Live)</MenuItem>
+                    <MenuItem value="blockcypher">BlockCypher (Live)</MenuItem>
+                    <MenuItem value="mempool">Mempool.space (Live)</MenuItem>
+                  </Select>
+                </FormControl>
               </Grid>
             </Grid>
 

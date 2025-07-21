@@ -81,8 +81,8 @@ export class ScanningEngine {
           });
         });
 
-        // Fetch balances for all addresses
-        const balances = await this.balanceService.fetchBalances(allAddresses, 'blockstream');
+        // Fetch balances for all addresses using local database
+        const balances = await this.balanceService.fetchBalances(allAddresses, 'local');
         
         // Update keys with balances
         const updatedKeys = pageData.keys.map(key => {

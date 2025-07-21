@@ -293,10 +293,13 @@ export default function Dashboard() {
     if (page.length > 15) {
       try {
         const pageBigInt = BigInt(page);
-        pageNumber = Number(pageBigInt);
-        // Check if the conversion lost precision
-        if (pageBigInt !== BigInt(pageNumber)) {
-          console.warn('Page number precision lost during conversion');
+        // Use BigInt for very large numbers, Number for smaller ones
+        if (pageBigInt > BigInt(Number.MAX_SAFE_INTEGER)) {
+          // For very large page numbers, work with string representation
+          pageNumber = Number.MAX_SAFE_INTEGER;
+          console.log(`Large page number detected: ${page}. Using string-based operations.`);
+        } else {
+          pageNumber = Number(pageBigInt);
         }
       } catch {
         // Fallback to parseInt for smaller numbers

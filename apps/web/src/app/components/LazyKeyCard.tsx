@@ -114,8 +114,8 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
     );
   }
 
-  // Use the actual key number from the backend data (1-based)
-  const keyNumber = keyData.index + 1;
+  // Calculate the absolute keyspace index (1-based)
+  const keyNumber = (currentKeysPage - 1) * keysPerPage + keyData.index + 1;
   
   return (
     <>
