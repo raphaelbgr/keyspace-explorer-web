@@ -77,7 +77,7 @@ The **Grid View** provides a comprehensive card-based interface featuring:
 - **Visual Hierarchy**: Clean, modern card design with clear data organization
 
 ### 🔍 Address Details Modal
-!(<img width="1280" height="976" alt="image" src="https://github.com/user-attachments/assets/a899def7-f476-4e43-841a-4e7652d3a653" />)
+<img width="512" height="370" alt="image" src="https://github.com/user-attachments/assets/a899def7-f476-4e43-841a-4e7652d3a653" />
 
 The **Address Details Modal** provides in-depth information:
 - **Private Key Display**: Full 64-character hexadecimal private key with copy functionality
@@ -88,7 +88,7 @@ The **Address Details Modal** provides in-depth information:
 - **Clean Interface**: Professional table layout with clear typography
 
 ### 📊 Table View - Compact Data Display
-![Table View](<img width="1280" height="1160" alt="image" src="https://github.com/user-attachments/assets/6ae67a8f-e37e-4719-ba88-31c7799e19f4" />)
+<img width="512" height="450" alt="image" src="https://github.com/user-attachments/assets/6ae67a8f-e37e-4719-ba88-31c7799e19f4" />
 
 The **Table View** offers efficient data browsing:
 - **Expandable Rows**: Click to expand any key for detailed information
