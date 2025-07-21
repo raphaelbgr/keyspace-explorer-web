@@ -133,6 +133,30 @@ export default function ScannerCard({
     }
   }, [isScanning, startTime, pagesScanned, scanStats.totalAddressesScanned]);
 
+  // Monitor generateLocally prop changes and restart scanner if needed
+  useEffect(() => {
+    // If scanner is currently running and generateLocally prop changed, restart the scanner
+    if (isScanning) {
+      console.log(`🔄 Generation method changed to ${generateLocally ? 'client-side' : 'server-side'}, restarting scanner...`);
+      // Store current scanner state
+      const wasScanning = isScanning;
+      const currentMode = autoNavigationMode;
+      const currentDelay = scanDelay;
+      const currentMaxPages = maxPages;
+      
+      // Stop scanner
+      handleStopScan();
+      
+      // Restart scanner after a brief delay to ensure clean state
+      setTimeout(() => {
+        if (wasScanning) {
+          console.log(`🚀 Restarting scanner with ${generateLocally ? 'client-side' : 'server-side'} generation`);
+          handleStartScan();
+        }
+      }, 500);
+    }
+  }, [generateLocally]); // Only trigger when generateLocally changes
+
   // Calculate maximum valid pages based on Bitcoin's private key limit
   const calculateMaxValidPages = useCallback((): string => {
     // Maximum valid Bitcoin private key (same as in ClientKeyGenerationService)

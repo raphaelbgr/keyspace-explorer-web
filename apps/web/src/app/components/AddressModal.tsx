@@ -23,7 +23,10 @@ import {
 import { 
   ContentCopy as ContentCopyIcon, 
   Close as CloseIcon,
-  OpenInNew as OpenInNewIcon 
+  OpenInNew as OpenInNewIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
+  Key as KeyIcon
 } from '@mui/icons-material';
 import { useCopyToClipboard } from '../utils/clipboard';
 
@@ -320,6 +323,7 @@ const AddressModal = ({ open, onClose, keyData, keyNumber }: AddressModalProps) 
               Private Key:
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 2, bgcolor: 'action.hover', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              <KeyIcon sx={{ fontSize: '1rem', color: '#FFD700' }} />
               <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.8rem', wordBreak: 'break-all', flex: 1, color: 'text.primary' }}>
                 {keyData.privateKey}
               </Typography>

@@ -1,6 +1,14 @@
 import React, { memo, useState, useEffect } from 'react';
 import { Card, Typography, IconButton, Chip, Box, Button, Collapse, CircularProgress } from '@mui/material';
-import { ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon, Visibility as VisibilityIcon, AccountBalance as BalanceIcon } from '@mui/icons-material';
+import {
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  Visibility as VisibilityIcon,
+  AccountBalance as BalanceIcon,
+  Add as AddIcon,
+  Remove as RemoveIcon,
+  Key as KeyIcon
+} from '@mui/icons-material';
 import AddressModal from './AddressModal';
 
 interface LazyKeyCardProps {
@@ -139,9 +147,12 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
           </IconButton>
         </Box>
         
-        <Typography variant="body2" fontFamily="monospace" sx={{ wordBreak: 'break-all', mb: 1, fontSize: '0.75rem' }}>
-          {keyData.privateKey}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <KeyIcon sx={{ fontSize: '1rem', color: '#FFD700' }} />
+          <Typography variant="body2" fontFamily="monospace" sx={{ wordBreak: 'break-all', fontSize: '0.75rem' }}>
+            {keyData.privateKey}
+          </Typography>
+        </Box>
         
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>

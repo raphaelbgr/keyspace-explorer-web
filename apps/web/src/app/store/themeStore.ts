@@ -15,11 +15,11 @@ const getInitialMode = (): 'light' | 'dark' => {
     // Detect system preference
     if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
   }
-  return 'light';
+  return 'dark'; // Default to dark mode
 };
 
 export const useThemeStore = create<ThemeState>((set, get) => ({
-  mode: 'light', // Default to light, will be updated on hydration
+  mode: 'dark', // Default to dark, will be updated on hydration
   isHydrated: false,
   toggle: () => {
     const newMode = get().mode === 'light' ? 'dark' : 'light';

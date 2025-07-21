@@ -20,7 +20,7 @@ import {
   Snackbar,
   Alert
 } from '@mui/material';
-import { AccountBalance as BalanceIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from '@mui/icons-material';
+import { AccountBalance as BalanceIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon, Key as KeyIcon } from '@mui/icons-material';
 import { useTranslation, formatTranslation } from '../translations';
 import LazyKeyCard from './LazyKeyCard';
 import Decimal from 'decimal.js';
@@ -141,8 +141,13 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                         </IconButton>
                       </TableCell>
                       <TableCell>{keyNumber}</TableCell>
-                      <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                        {key.privateKey}
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <KeyIcon sx={{ fontSize: '1rem', color: '#FFD700' }} />
+                          <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.75rem' }}>
+                            {key.privateKey}
+                          </Typography>
+                        </Box>
                       </TableCell>
                       <TableCell>
                         {key.totalBalance.toFixed(8)} {t.btc}
@@ -178,6 +183,7 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                       {t.privateKey}:
                                     </Typography>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      <KeyIcon sx={{ fontSize: '1rem', color: '#FFD700' }} />
                                       <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>
                                         {key.privateKey}
                                       </Typography>

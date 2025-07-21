@@ -287,30 +287,6 @@ export default function KeyspaceSlider({
         </Tooltip>
       </Box>
 
-      {/* Direct page input */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <TextField
-          label="Go to page"
-          value={inputValue}
-          onChange={handleInputChange}
-          onKeyDown={e => { if (e.key === 'Enter') handleInputSubmit(); }}
-          size="small"
-          sx={{ width: 180 }}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton onClick={handleInputSubmit} size="small">
-                  <ArrowForwardIcon />
-                </IconButton>
-              </InputAdornment>
-            )
-          }}
-        />
-        <Typography variant="caption" color="text.secondary">
-          (1 - {formatNumber(totalPagesDecimal.toFixed(0))})
-        </Typography>
-      </Box>
-
       {/* Quick Navigation Buttons */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
         <Typography variant="caption" color="text.secondary">

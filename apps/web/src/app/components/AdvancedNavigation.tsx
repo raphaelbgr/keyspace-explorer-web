@@ -14,9 +14,11 @@ import {
   AccordionSummary,
   AccordionDetails,
   Select,
-  MenuItem
+  MenuItem,
+  Card
 } from '@mui/material';
 import { ExpandMore, ChevronLeft, ChevronRight, Casino } from '@mui/icons-material';
+import CasinoIcon from '@mui/icons-material/Casino'; // Added missing import
 import { secureRandomKeyInPage, diceRollAnimation } from '../utils/secureRandom';
 import { useTranslation } from '../translations';
 import { useNavigationStore } from '../store/navigationStore';
@@ -85,6 +87,7 @@ const AdvancedNavigation = ({
   const { getLastPageNumber } = useNavigationStore();
   const [customPage, setCustomPage] = useState('');
   const [customJump, setCustomJump] = useState('');
+  const [selectedJumpDirection, setSelectedJumpDirection] = useState<'forward' | 'backward' | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [diceRolling, setDiceRolling] = useState(false);
   const [randomMode, setRandomMode] = useState<'page' | 'key'>('page');
@@ -133,10 +136,24 @@ const AdvancedNavigation = ({
   const quickJumpPages = [10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000];
 
   const handleCustomPageSubmit = useCallback(() => {
-    const page = parseInt(customPage);
-    if (page > 0 && page <= totalPages) {
-      onPageChange(page.toString());
-      setCustomPage('');
+    if (!customPage.trim()) return;
+    
+    try {
+      // Use Decimal.js for large number handling
+      const pageDecimal = new Decimal(customPage.trim());
+      const totalPagesDecimal = new Decimal(totalPages);
+      
+      // Validate range
+      if (pageDecimal.gte(1) && pageDecimal.lte(totalPagesDecimal)) {
+        const pageString = pageDecimal.toFixed(0);
+        onPageChange(pageString);
+        setCustomPage('');
+      } else {
+        // Show validation error
+        console.warn(`Page number ${customPage} is out of range. Valid range: 1 to ${totalPages}`);
+      }
+    } catch (error) {
+      console.error('Invalid page number format:', customPage, error);
     }
   }, [customPage, totalPages, onPageChange]);
 
@@ -168,6 +185,16 @@ const AdvancedNavigation = ({
     }
     // Don't clear the input - keep the last value
   }, [customJump, currentPage, totalPages, onPageChange, onDirectPageChange]);
+
+  const handleJumpDirectionSelect = useCallback((direction: 'forward' | 'backward') => {
+    setSelectedJumpDirection(direction);
+  }, []);
+
+  const handleJumpEnterKey = useCallback(async () => {
+    if (selectedJumpDirection && customJump) {
+      await handleCustomJump(selectedJumpDirection);
+    }
+  }, [selectedJumpDirection, customJump, handleCustomJump]);
 
   const handleQuickJump = useCallback(async (jump: number) => {
     const currentPageDecimal = parsePageNumberToDecimal(currentPage);
@@ -339,126 +366,139 @@ const AdvancedNavigation = ({
 
         {/* Custom Page Input */}
         <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12}>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
               <TextField
                 size="small"
                 label="Go to Page"
+                placeholder="Enter page number (e.g., 1234567890123456789)"
                 value={customPage}
                 onChange={(e) => setCustomPage(e.target.value)}
-                type="number"
+                type="text"
+                multiline={false}
                 sx={{ 
                   flexGrow: 1,
-                  minWidth: '200px',
+                  minWidth: '400px', // Much wider to support huge numbers
+                  maxWidth: '800px',
                   '& .MuiInputBase-input': {
                     fontSize: '14px',
-                    padding: '8px 12px',
+                    padding: '10px 14px',
+                    fontFamily: 'monospace', // Better for numbers
+                    letterSpacing: '0.5px'
+                  },
+                  '& .MuiInputLabel-root': {
+                    fontSize: '14px'
+                  }
+                }}
+                helperText={customPage ? 
+                  `Will go to page: ${customPage}` : 
+                  `Current page: ${formatPageNumber(currentPage)} of ${totalPages}`
+                }
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleCustomPageSubmit();
                   }
                 }}
               />
               <Button
                 variant="contained"
                 onClick={handleCustomPageSubmit}
-                disabled={!customPage || parseInt(customPage) <= 0 || parseInt(customPage) > totalPages}
+                disabled={!customPage.trim()}
                 size="small"
+                sx={{ 
+                  minWidth: '80px',
+                  height: '40px'
+                }}
               >
                 Go
               </Button>
             </Box>
           </Grid>
           
-          <Grid item xs={12} md={6}>
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <Grid item xs={12}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
               <TextField
                 size="small"
                 label="Jump Pages"
+                placeholder="Number of pages to jump"
                 value={customJump}
                 onChange={(e) => setCustomJump(e.target.value)}
                 type="number"
-                sx={{ flexGrow: 1 }}
+                sx={{ 
+                  flexGrow: 1, 
+                  minWidth: '150px',
+                  maxWidth: '200px'
+                }}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleJumpEnterKey();
+                  }
+                }}
+                helperText={selectedJumpDirection && customJump ? 
+                  `Press Enter to jump ${customJump} pages ${selectedJumpDirection}` : 
+                  'Select direction and press Enter to jump'
+                }
               />
-              <Tooltip title="Jump Backward" arrow>
-                <span>
-                  <IconButton
-                    onClick={() => handleCustomJump('backward')}
-                    disabled={!customJump || parseInt(customJump) <= 0}
-                    size="small"
-                  >
-                    <ChevronLeft />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <Tooltip title="Jump Forward" arrow>
-                <span>
-                  <IconButton
-                    onClick={() => handleCustomJump('forward')}
-                    disabled={!customJump || parseInt(customJump) <= 0}
-                    size="small"
-                  >
-                    <ChevronRight />
-                  </IconButton>
-                </span>
-              </Tooltip>
+              <Button
+                variant={selectedJumpDirection === 'backward' ? 'contained' : 'outlined'}
+                color={selectedJumpDirection === 'backward' ? 'primary' : 'inherit'}
+                onClick={() => handleJumpDirectionSelect('backward')}
+                disabled={!customJump || parseInt(customJump) <= 0}
+                size="small"
+                sx={{ minWidth: '120px' }}
+              >
+                Jump Backwards
+              </Button>
+              <Button
+                variant={selectedJumpDirection === 'forward' ? 'contained' : 'outlined'}
+                color={selectedJumpDirection === 'forward' ? 'primary' : 'inherit'}
+                onClick={() => handleJumpDirectionSelect('forward')}
+                disabled={!customJump || parseInt(customJump) <= 0}
+                size="small"
+                sx={{ minWidth: '120px' }}
+              >
+                Jump Forward
+              </Button>
             </Box>
           </Grid>
         </Grid>
 
-        {/* Quick Jump Buttons */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle2" gutterBottom>
-            Quick Jump Forward:
+        {/* Random Key Selector */}
+        <Card sx={{ p: 2, mb: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CasinoIcon color="primary" />
+            Random Key Selector
           </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            {quickJumpPages.map((jump) => {
-              const isDisabled = parsePageNumberToDecimal(currentPage).plus(jump).gte(totalPages);
-              const button = (
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => handleQuickJump(jump)}
-                  disabled={isDisabled}
-                  sx={{ minWidth: 'auto', px: 1 }}
-                >
-                  +{jump}
-                </Button>
-              );
-              
-              return (
-                <Tooltip key={jump} title={`Jump +${jump} pages`} arrow>
-                  {isDisabled ? <span>{button}</span> : button}
-                </Tooltip>
-              );
-            })}
-          </Box>
-        </Box>
-
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle2" gutterBottom>
-            Quick Jump Backward:
+          <Select
+            size="small"
+            value={randomMode}
+            onChange={(e: any) => setRandomMode(e.target.value as 'page' | 'key')}
+            sx={{ minWidth: 80 }}
+          >
+            <MenuItem value="page">Page</MenuItem>
+            <MenuItem value="key">Key</MenuItem>
+          </Select>
+          <Tooltip title={`Random ${randomMode === 'page' ? 'Page' : 'Key in Current Page'}`} arrow>
+            <IconButton
+              onClick={handleDiceRoll}
+              color="secondary"
+              size="small"
+              disabled={diceRolling}
+              sx={{
+                animation: diceRolling ? 'spin 0.3s linear infinite' : 'none',
+                '@keyframes spin': {
+                  '0%': { transform: 'rotate(0deg)' },
+                  '100%': { transform: 'rotate(360deg)' },
+                },
+              }}
+            >
+              <Casino />
+            </IconButton>
+          </Tooltip>
+          <Typography variant="caption" color="text.secondary">
+            🎲 Random {randomMode}
           </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            {quickJumpPages.map((jump) => {
-              const isDisabled = parsePageNumberToDecimal(currentPage).minus(jump).lte(1);
-              const button = (
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => handleQuickJumpBack(jump)}
-                  disabled={isDisabled}
-                  sx={{ minWidth: 'auto', px: 1 }}
-                >
-                  -{jump}
-                </Button>
-              );
-              
-              return (
-                <Tooltip key={jump} title={`Jump -${jump} pages`} arrow>
-                  {isDisabled ? <span>{button}</span> : button}
-                </Tooltip>
-              );
-            })}
-          </Box>
-        </Box>
+        </Card>
 
         {/* Keys Per Page Control */}
         <Box>

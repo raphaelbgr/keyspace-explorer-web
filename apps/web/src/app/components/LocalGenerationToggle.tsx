@@ -27,7 +27,6 @@ const LocalGenerationToggle = memo<LocalGenerationToggleProps>(({
   disabled = false,
   loading = false
 }) => {
-  
   const handleToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
     onToggle(event.target.checked);
   };
@@ -37,171 +36,80 @@ const LocalGenerationToggle = memo<LocalGenerationToggleProps>(({
       sx={{
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
         width: '100%',
-        p: 1,
+        p: 1.5,
         borderRadius: 2,
-        background: enabled 
+        background: enabled
           ? 'linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.05))'
           : 'linear-gradient(135deg, rgba(158, 158, 158, 0.1), rgba(158, 158, 158, 0.05))',
         border: '1px solid',
         borderColor: enabled ? 'success.main' : 'divider',
         transition: 'all 0.3s ease-in-out',
+        gap: 1,
         '&:hover': {
           borderColor: enabled ? 'success.light' : 'primary.main',
           transform: 'translateY(-1px)',
-          boxShadow: enabled 
+          boxShadow: enabled
             ? '0 4px 12px rgba(76, 175, 80, 0.15)'
             : '0 4px 12px rgba(0, 0, 0, 0.1)'
         }
       }}
     >
-      {/* Header with Icon and Switch */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          width: '100%',
-          mb: 1
-        }}
-      >
+      {/* Top Row: Icon + Label + Switch + Status */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {enabled ? (
-            <ComputerIcon 
-              sx={{ 
-                color: 'success.main',
-                fontSize: '1.2rem'
-              }} 
-            />
+            <ComputerIcon sx={{ color: 'success.main', fontSize: '1.1rem' }} />
           ) : (
-            <CloudIcon 
-              sx={{ 
-                color: 'text.secondary',
-                fontSize: '1.2rem'
-              }} 
-            />
+            <CloudIcon sx={{ color: 'text.secondary', fontSize: '1.1rem' }} />
           )}
-          <Typography 
-            variant="body2" 
-            fontWeight="medium"
-            sx={{ 
-              color: enabled ? 'success.main' : 'text.secondary',
-              fontSize: '0.875rem'
-            }}
-          >
+          <Typography variant="body2" fontWeight="medium" sx={{ color: enabled ? 'success.main' : 'text.secondary', fontSize: '0.875rem' }}>
             Generate Locally
           </Typography>
         </Box>
 
-        <Tooltip
-          title={enabled 
-            ? "Switch to server-side generation" 
-            : "Switch to client-side generation"
-          }
-          arrow
-          placement="top"
-        >
-          <span>
-            <Switch
-              checked={enabled}
-              onChange={handleToggle}
-              disabled={disabled || loading}
-              size="small"
-              sx={{
-                '& .MuiSwitch-track': {
-                  backgroundColor: enabled ? 'success.light' : 'grey.400',
-                },
-                '& .MuiSwitch-thumb': {
-                  backgroundColor: enabled ? 'success.main' : 'grey.600',
-                  width: 16,
-                  height: 16,
-                }
-              }}
-            />
-          </span>
-        </Tooltip>
-      </Box>
-
-      {/* Status Indicator */}
-      <Fade in timeout={300}>
-        <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          {/* Status Chip */}
           {enabled ? (
-            <Chip
-              icon={<SpeedIcon sx={{ fontSize: '0.875rem' }} />}
-              label="Browser Generation"
-              size="small"
-              variant="outlined"
-              sx={{
-                fontSize: '0.75rem',
-                height: 24,
-                borderColor: 'success.main',
-                color: 'success.main',
-                '& .MuiChip-icon': {
-                  color: 'success.main'
-                }
-              }}
+            <Chip icon={<SpeedIcon sx={{ fontSize: '0.8rem' }} />} label="Browser" size="small" variant="outlined"
+              sx={{ fontSize: '0.7rem', height: 22, borderColor: 'success.main', color: 'success.main', '& .MuiChip-icon': { color: 'success.main' } }}
             />
           ) : (
-            <Chip
-              icon={<SecurityIcon sx={{ fontSize: '0.875rem' }} />}
-              label="Server Generation"
-              size="small"
-              variant="outlined"
-              sx={{
-                fontSize: '0.75rem',
-                height: 24,
-                borderColor: 'text.secondary',
-                color: 'text.secondary',
-                '& .MuiChip-icon': {
-                  color: 'text.secondary'
-                }
-              }}
+            <Chip icon={<SecurityIcon sx={{ fontSize: '0.8rem' }} />} label="Server" size="small" variant="outlined"
+              sx={{ fontSize: '0.7rem', height: 22, borderColor: 'text.secondary', color: 'text.secondary', '& .MuiChip-icon': { color: 'text.secondary' } }}
             />
           )}
-        </Box>
-      </Fade>
 
-      {/* Benefits Tooltip */}
-      <Tooltip
-        title={
-          <Box sx={{ p: 1 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              {enabled ? "🚀 Local Generation Benefits:" : "🛡️ Server Generation Benefits:"}
-            </Typography>
-            {enabled ? (
-              <Box component="ul" sx={{ m: 0, pl: 2, fontSize: '0.75rem' }}>
-                <li>⚡ Instant generation</li>
-                <li>🔒 Client-side security</li>
-                <li>📱 Works offline</li>
-                <li>🎯 No server load</li>
-              </Box>
-            ) : (
-              <Box component="ul" sx={{ m: 0, pl: 2, fontSize: '0.75rem' }}>
-                <li>💻 Better for older devices</li>
-                <li>📊 Consistent performance</li>
-                <li>🌐 Server-side processing</li>
-                <li>🔧 Centralized updates</li>
-              </Box>
-            )}
-          </Box>
-        }
-        arrow
-        placement="bottom"
-        enterDelay={500}
-      >
-        <Box
-          sx={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            cursor: 'help',
-            zIndex: 1
-          }}
-        />
-      </Tooltip>
+          {/* Switch */}
+          <Tooltip title={enabled ? "Switch to server-side generation" : "Switch to client-side generation"} arrow placement="top">
+            <span>
+              <Switch
+                checked={enabled}
+                onChange={handleToggle}
+                disabled={disabled || loading}
+                size="small"
+                sx={{
+                  '& .MuiSwitch-track': { backgroundColor: enabled ? 'success.light' : 'grey.400' },
+                  '& .MuiSwitch-thumb': { backgroundColor: enabled ? 'success.main' : 'grey.600', width: 16, height: 16 }
+                }}
+              />
+            </span>
+          </Tooltip>
+        </Box>
+      </Box>
+
+      {/* Bottom Row: Benefits (Left Aligned) */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '100%' }}>
+        <Typography variant="caption" sx={{ fontSize: '0.75rem', fontWeight: 'bold', color: enabled ? 'success.main' : 'text.secondary', mb: 0.3 }}>
+          {enabled ? "🚀 Local Generation Benefits:" : "🛡️ Server Generation Benefits:"}
+        </Typography>
+        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary', lineHeight: 1.3 }}>
+          {enabled 
+            ? "⚡ Instant generation • 🔒 Client-side security • 📱 Works offline • 🎯 No server load"
+            : "💻 Better for older devices • 📊 Consistent performance • 🌐 Server-side processing • 🔧 Centralized updates"
+          }
+        </Typography>
+      </Box>
     </Box>
   );
 });

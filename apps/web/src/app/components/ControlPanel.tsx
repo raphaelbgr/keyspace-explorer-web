@@ -105,50 +105,12 @@ const ControlPanel = memo<ControlPanelProps>(({
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} md={2}>
+          <Grid item xs={12} md={5}>
             <LocalGenerationToggle
               enabled={generateLocally || false}
               onToggle={onToggleLocalGeneration || (() => {})}
               disabled={loading}
             />
-          </Grid>
-
-          <Grid item xs={12} md={2}>
-            <Tooltip title="Generate 45 keys for the specified page" arrow>
-              <span>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  onClick={onGeneratePage}
-                  disabled={loading}
-                  startIcon={<RefreshIcon />}
-                  size="small"
-                  sx={{ 
-                    background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
-                    '&:hover': { background: 'linear-gradient(45deg, #FF5252, #26A69A)' }
-                  }}
-                >
-                  {t.generatePage}
-                </Button>
-              </span>
-            </Tooltip>
-          </Grid>
-
-          <Grid item xs={12} md={2}>
-            <Tooltip title={hasFunds ? "Funds found on this page" : "No funds found on this page"} arrow>
-              <span>
-                <Button
-                  fullWidth
-                  variant={hasFunds ? "contained" : "outlined"}
-                  color={hasFunds ? "success" : "error"}
-                  disabled={!lastChecked}
-                  startIcon={hasFunds ? <PlayIcon /> : <StopIcon />}
-                  size="small"
-                >
-                  {hasFunds ? t.funds : "No Funds"}
-                </Button>
-              </span>
-            </Tooltip>
           </Grid>
 
           <Grid item xs={12} md={2}>

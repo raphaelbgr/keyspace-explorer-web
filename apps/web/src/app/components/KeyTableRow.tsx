@@ -14,7 +14,8 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   ContentCopy as ContentCopyIcon,
-  OpenInNew as OpenInNewIcon
+  OpenInNew as OpenInNewIcon,
+  Key as KeyIcon
 } from '@mui/icons-material';
 import { useCopyToClipboard } from '../utils/clipboard';
 
@@ -82,8 +83,13 @@ const KeyTableRow = memo<KeyTableRowProps>(({
     <>
       <TableRow>
         <TableCell>{keyNumber.toString()}</TableCell>
-        <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
-          {keyData.privateKey}
+        <TableCell>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <KeyIcon sx={{ fontSize: '1rem', color: '#FFD700' }} />
+            <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.75rem' }}>
+              {keyData.privateKey}
+            </Typography>
+          </Box>
         </TableCell>
         <TableCell>
           <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.7rem' }}>
