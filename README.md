@@ -61,11 +61,12 @@ A sophisticated web application for exploring the Bitcoin private key space with
 - **Accessibility**: WCAG compliant interface
 
 ## 📱 Application Preview
-<img width="2606" height="9502" alt="image" src="https://github.com/user-attachments/assets/00cbaa9e-41ab-4b07-acc0-1ed3a6947b4e" />
+<img width="512" height="4000" alt="image" src="https://github.com/user-attachments/assets/00cbaa9e-41ab-4b07-acc0-1ed3a6947b4e" />
 
 
 ### 🎯 Grid View - Rich Card Display
-![Grid View](<img width="768" height="2500 alt="image" src="https://github.com/user-attachments/assets/05f65704-abf2-4497-8296-bfc54eb4bc17" />)
+![Grid View](<img width="1280" height="1160" alt="image" src="https://github.com/user-attachments/assets/00c40cb2-405b-4732-884c-8bb259371acf" />
+)
 
 The **Grid View** provides a comprehensive card-based interface featuring:
 - **Balance Overview**: Total page balance prominently displayed (2.50000000 BTC shown)
