@@ -238,7 +238,13 @@ export default function Dashboard() {
       const data = await response.json();
       setPageData(data);
       setCurrentPage(data.pageNumber);
-      setNavCurrentPage(randomPage);
+      
+      // Convert randomPage to number for navigation store (handle large numbers gracefully)
+      const pageForNav = typeof randomPage === 'string' ? 
+        parseInt(randomPage) || 1 : 
+        randomPage;
+      setNavCurrentPage(pageForNav);
+      
       setNotification({ message: `Random page ${data.pageNumber} generated successfully`, type: 'success' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');

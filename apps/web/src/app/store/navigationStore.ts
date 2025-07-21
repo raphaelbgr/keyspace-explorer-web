@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { secureRandomBigInt, generateUniformRandomInRange } from '../utils/secureRandom';
 
 interface NavigationState {
   // Current navigation state
@@ -16,7 +17,7 @@ interface NavigationState {
   setTotalPages: (pages: bigint) => void;
   setKeysPerPage: (keysPerPage: number) => void;
   calculateTotalPages: (estimatedKeys: bigint) => void;
-  generateRandomPage: () => number;
+  generateRandomPage: () => number | string;
   
   // Navigation helpers
   canNavigateForward: () => boolean;
@@ -29,7 +30,7 @@ export const useNavigationStore = create<NavigationState>()(
   persist(
     (set, get) => ({
       currentPage: 1,
-      totalPages: BigInt(1),
+      totalPages: BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140") / BigInt(45), // Calculate for default 45 keys per page
       keysPerPage: 45,
       estimatedTotalKeys: BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140"), // Maximum Bitcoin private key
       keysPerPageOptions: [10, 25, 45, 50, 100, 250, 500, 1000, 10000],
@@ -72,14 +73,40 @@ export const useNavigationStore = create<NavigationState>()(
       
       generateRandomPage: () => {
         const state = get();
-        const maxPage = Math.min(Number(state.totalPages), 1000000); // Limit to reasonable range
         
-        // Use cryptographically secure random generator
-        const randomBytes = new Uint32Array(1);
-        crypto.getRandomValues(randomBytes);
-        const randomValue = randomBytes[0] / (0xffffffff + 1);
-        
-        return Math.floor(randomValue * maxPage) + 1;
+        try {
+          // Use the ACTUAL maximum page range based on Bitcoin keyspace and current keysPerPage
+          // This automatically adjusts when keysPerPage changes (45, 100, 1000, etc.)
+          const actualMaxPages = state.totalPages;
+          
+          console.log(`Generating random page in range 1 to ${actualMaxPages.toString()}`);
+          
+          // Generate cryptographically secure random page within the real calculated range
+          // Use a string-based approach for true uniform distribution
+          const randomPage = generateUniformRandomInRange(actualMaxPages);
+          
+          // Convert to string to preserve precision for very large numbers
+          return randomPage.toString();
+        } catch (error) {
+          console.warn('Error generating secure random page, falling back to calculated range:', error);
+          // Fallback: use the actual totalPages but with standard crypto random
+          const state = get();
+          const maxPages = state.totalPages;
+          
+          // For very large numbers, use modulo approach with the real range
+          const randomBytes = new Uint8Array(32); // 256 bits of entropy
+          crypto.getRandomValues(randomBytes);
+          
+          // Convert bytes to BigInt
+          let randomBigInt = BigInt(0);
+          for (let i = 0; i < randomBytes.length; i++) {
+            randomBigInt = randomBigInt * BigInt(256) + BigInt(randomBytes[i]);
+          }
+          
+          // Use modulo with actual max pages to stay in valid range
+          const randomPage = (randomBigInt % maxPages) + BigInt(1);
+          return randomPage.toString();
+        }
       },
       
       canNavigateForward: () => {
