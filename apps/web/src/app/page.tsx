@@ -248,6 +248,36 @@ export default function Dashboard() {
     }
   };
 
+  const handleRandomKeyInPage = (keyIndex: number) => {
+    // Scroll to the random key and highlight it
+    if (pageData && pageData.keys && pageData.keys[keyIndex]) {
+      // Expand the key to show details
+      setExpandedKeys(new Set([keyIndex]));
+      
+      // Scroll to the key (implement smooth scrolling)
+      setTimeout(() => {
+        const keyElement = document.querySelector(`[data-key-index="${keyIndex}"]`);
+        if (keyElement) {
+          keyElement.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          });
+          
+          // Add a temporary highlight effect
+          keyElement.classList.add('highlight-flash');
+          setTimeout(() => {
+            keyElement.classList.remove('highlight-flash');
+          }, 2000);
+        }
+      }, 100);
+      
+      setNotification({ 
+        message: `Random key #${keyIndex + 1} selected in current page`, 
+        type: 'info' 
+      });
+    }
+  };
+
   const handleScannerStart = async (config: any) => {
     console.log('Scanner start called with config:', config);
     if (!pageData) {
@@ -423,6 +453,7 @@ export default function Dashboard() {
           onPageChange={handlePageChange}
           onDirectPageChange={handleDirectPageChange}
           onRandomPage={handleRandomPage}
+          onRandomKeyInPage={handleRandomKeyInPage}
           keysPerPage={navKeysPerPage}
           onKeysPerPageChange={handleKeysPerPageChange}
         />

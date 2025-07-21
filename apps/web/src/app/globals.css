@@ -239,3 +239,25 @@ textarea:focus {
     background: #888;
   }
 }
+
+/* Dice roll highlight animation */
+.highlight-flash {
+  animation: highlight-pulse 2s ease-in-out;
+  border: 2px solid #ff6b6b !important;
+  box-shadow: 0 0 20px rgba(255, 107, 107, 0.6) !important;
+}
+
+@keyframes highlight-pulse {
+  0% {
+    box-shadow: 0 0 5px rgba(255, 107, 107, 0.8);
+    border-color: #ff6b6b;
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(255, 107, 107, 0.9);
+    border-color: #ff4757;
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(255, 107, 107, 0.8);
+    border-color: #ff6b6b;
+  }
+}

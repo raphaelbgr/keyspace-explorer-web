@@ -31,7 +31,7 @@ import {
   ExpandMore,
   PlayArrow,
   Stop,
-  Shuffle,
+  Casino,
   ArrowForward,
   ArrowBack,
   TrendingUp,
@@ -440,7 +440,7 @@ export default function ScannerCard({
               sx={{ mb: 3 }}
             >
               <ToggleButton value="random">
-                <Shuffle sx={{ mr: 1 }} />
+                <Casino sx={{ mr: 1 }} />
                 Random
               </ToggleButton>
               <ToggleButton value="forward">

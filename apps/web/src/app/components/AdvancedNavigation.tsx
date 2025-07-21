@@ -12,9 +12,12 @@ import {
   Divider,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
+  Select,
+  MenuItem
 } from '@mui/material';
-import { ExpandMore, ChevronLeft, ChevronRight, Shuffle, Casino } from '@mui/icons-material';
+import { ExpandMore, ChevronLeft, ChevronRight, Casino } from '@mui/icons-material';
+import { secureRandomKeyInPage, diceRollAnimation } from '../utils/secureRandom';
 import { useTranslation } from '../translations';
 import { useNavigationStore } from '../store/navigationStore';
 import Decimal from 'decimal.js';
@@ -63,6 +66,7 @@ interface AdvancedNavigationProps {
   onPageChange: (page: string) => void;
   onDirectPageChange?: (page: string) => Promise<void>; // NEW: Direct API call bypass
   onRandomPage: () => void;
+  onRandomKeyInPage?: (keyIndex: number) => void; // NEW: Random key within current page
   keysPerPage: number;
   onKeysPerPageChange: (keysPerPage: number) => void;
 }
@@ -73,6 +77,7 @@ const AdvancedNavigation = ({
   onPageChange,
   onDirectPageChange, // NEW: Direct API call function
   onRandomPage,
+  onRandomKeyInPage,
   keysPerPage,
   onKeysPerPageChange
 }: AdvancedNavigationProps) => {
@@ -81,6 +86,41 @@ const AdvancedNavigation = ({
   const [customPage, setCustomPage] = useState('');
   const [customJump, setCustomJump] = useState('');
   const [expanded, setExpanded] = useState(false);
+  const [diceRolling, setDiceRolling] = useState(false);
+  const [randomMode, setRandomMode] = useState<'page' | 'key'>('page');
+
+  // Enhanced dice roll function with animation
+  const handleDiceRoll = async () => {
+    setDiceRolling(true);
+    
+    try {
+      if (randomMode === 'page') {
+        // Animate dice roll for pages
+        const rollAnimation = diceRollAnimation(1, 6, 3);
+        for (let i = 0; i < rollAnimation.length; i++) {
+          await new Promise(resolve => setTimeout(resolve, 150));
+        }
+        
+        // Execute random page navigation
+        onRandomPage();
+      } else if (randomMode === 'key' && onRandomKeyInPage) {
+        // Random key within current page
+        const randomKeyIndex = secureRandomKeyInPage(keysPerPage);
+        
+        // Animate dice roll for keys
+        const rollAnimation = diceRollAnimation(0, keysPerPage - 1, 3);
+        for (let i = 0; i < rollAnimation.length; i++) {
+          await new Promise(resolve => setTimeout(resolve, 150));
+        }
+        
+        onRandomKeyInPage(randomKeyIndex);
+      }
+    } catch (error) {
+      console.error('Dice roll error:', error);
+    } finally {
+      setDiceRolling(false);
+    }
+  };
   
   // Ensure t is defined with fallbacks
   const translations = t || {
@@ -247,15 +287,34 @@ const AdvancedNavigation = ({
             </span>
           </Tooltip>
           
-          <Tooltip title="Go to Random Page" arrow>
-            <IconButton
-              onClick={onRandomPage}
-              color="secondary"
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Select
               size="small"
+              value={randomMode}
+              onChange={(e: any) => setRandomMode(e.target.value as 'page' | 'key')}
+              sx={{ minWidth: 80 }}
             >
-              <Shuffle />
-            </IconButton>
-          </Tooltip>
+              <MenuItem value="page">Page</MenuItem>
+              <MenuItem value="key">Key</MenuItem>
+            </Select>
+            <Tooltip title={`Random ${randomMode === 'page' ? 'Page' : 'Key in Current Page'}`} arrow>
+              <IconButton
+                onClick={handleDiceRoll}
+                color="secondary"
+                size="small"
+                disabled={diceRolling}
+                sx={{
+                  animation: diceRolling ? 'spin 0.3s linear infinite' : 'none',
+                  '@keyframes spin': {
+                    '0%': { transform: 'rotate(0deg)' },
+                    '100%': { transform: 'rotate(360deg)' },
+                  },
+                }}
+              >
+                <Casino />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
 
         <Divider sx={{ mb: 2 }} />

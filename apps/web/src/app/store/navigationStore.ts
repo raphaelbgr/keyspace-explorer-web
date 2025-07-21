@@ -73,7 +73,13 @@ export const useNavigationStore = create<NavigationState>()(
       generateRandomPage: () => {
         const state = get();
         const maxPage = Math.min(Number(state.totalPages), 1000000); // Limit to reasonable range
-        return Math.floor(Math.random() * maxPage) + 1;
+        
+        // Use cryptographically secure random generator
+        const randomBytes = new Uint32Array(1);
+        crypto.getRandomValues(randomBytes);
+        const randomValue = randomBytes[0] / (0xffffffff + 1);
+        
+        return Math.floor(randomValue * maxPage) + 1;
       },
       
       canNavigateForward: () => {
@@ -116,8 +122,8 @@ export const useNavigationStore = create<NavigationState>()(
       onRehydrateStorage: () => (state) => {
         if (state) {
           // Convert strings back to BigInt
-          state.estimatedTotalKeys = BigInt(state.estimatedTotalKeys as string);
-          state.totalPages = BigInt(state.totalPages as string);
+          state.estimatedTotalKeys = BigInt(state.estimatedTotalKeys as unknown as string);
+          state.totalPages = BigInt(state.totalPages as unknown as string);
         }
       },
     }
