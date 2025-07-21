@@ -30,6 +30,7 @@ const VirtualizedKeyTable = memo<VirtualizedKeyTableProps>(({
             <TableRow>
               <TableCell>Key #</TableCell>
               <TableCell>Private Key</TableCell>
+              <TableCell>Address</TableCell>
               <TableCell>Balance</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Actions</TableCell>

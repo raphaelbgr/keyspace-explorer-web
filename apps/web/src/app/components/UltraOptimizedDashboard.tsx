@@ -179,7 +179,7 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                       <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>
                                         {key.privateKey}
                                       </Typography>
-                                      <Tooltip title={t.copyToClipboard}>
+                                      <Tooltip title="Copy Private Key">
                                         <IconButton size="small" onClick={(e) => {
                                           e.stopPropagation();
                                           handleCopy(key.privateKey);
@@ -200,6 +200,7 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                           <TableCell>Address Type</TableCell>
                                           <TableCell>Address</TableCell>
                                           <TableCell align="right">Balance (BTC)</TableCell>
+                                          <TableCell>Actions</TableCell>
                                         </TableRow>
                                       </TableHead>
                                       <TableBody>
@@ -211,6 +212,26 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                           <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
                                             {key.balances.p2pkh_compressed.toFixed(8)}
                                           </TableCell>
+                                          <TableCell>
+                                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                              <Tooltip title="Copy address" arrow>
+                                                <IconButton
+                                                  size="small"
+                                                  onClick={() => handleCopy(key.addresses.p2pkh_compressed)}
+                                                >
+                                                  <ContentCopyIcon fontSize="small" />
+                                                </IconButton>
+                                              </Tooltip>
+                                              <Tooltip title="Explore on blockchain.com" arrow>
+                                                <IconButton
+                                                  size="small"
+                                                  onClick={() => window.open(`https://www.blockchain.com/explorer/addresses/btc/${key.addresses.p2pkh_compressed}`, '_blank', 'noopener,noreferrer')}
+                                                >
+                                                  <OpenInNewIcon fontSize="small" />
+                                                </IconButton>
+                                              </Tooltip>
+                                            </Box>
+                                          </TableCell>
                                         </TableRow>
                                         <TableRow>
                                           <TableCell>{t.p2pkhUncompressed}</TableCell>
@@ -219,6 +240,26 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                           </TableCell>
                                           <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
                                             {key.balances.p2pkh_uncompressed.toFixed(8)}
+                                          </TableCell>
+                                          <TableCell>
+                                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                              <Tooltip title="Copy address" arrow>
+                                                <IconButton
+                                                  size="small"
+                                                  onClick={() => handleCopy(key.addresses.p2pkh_uncompressed)}
+                                                >
+                                                  <ContentCopyIcon fontSize="small" />
+                                                </IconButton>
+                                              </Tooltip>
+                                              <Tooltip title="Explore on blockchain.com" arrow>
+                                                <IconButton
+                                                  size="small"
+                                                  onClick={() => window.open(`https://www.blockchain.com/explorer/addresses/btc/${key.addresses.p2pkh_uncompressed}`, '_blank', 'noopener,noreferrer')}
+                                                >
+                                                  <OpenInNewIcon fontSize="small" />
+                                                </IconButton>
+                                              </Tooltip>
+                                            </Box>
                                           </TableCell>
                                         </TableRow>
                                         <TableRow>
@@ -229,6 +270,26 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                           <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
                                             {key.balances.p2wpkh.toFixed(8)}
                                           </TableCell>
+                                          <TableCell>
+                                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                              <Tooltip title="Copy address" arrow>
+                                                <IconButton
+                                                  size="small"
+                                                  onClick={() => handleCopy(key.addresses.p2wpkh)}
+                                                >
+                                                  <ContentCopyIcon fontSize="small" />
+                                                </IconButton>
+                                              </Tooltip>
+                                              <Tooltip title="Explore on blockchain.com" arrow>
+                                                <IconButton
+                                                  size="small"
+                                                  onClick={() => window.open(`https://www.blockchain.com/explorer/addresses/btc/${key.addresses.p2wpkh}`, '_blank', 'noopener,noreferrer')}
+                                                >
+                                                  <OpenInNewIcon fontSize="small" />
+                                                </IconButton>
+                                              </Tooltip>
+                                            </Box>
+                                          </TableCell>
                                         </TableRow>
                                         <TableRow>
                                           <TableCell>{t.p2shP2wpkh}</TableCell>
@@ -238,6 +299,26 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                           <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
                                             {key.balances.p2sh_p2wpkh.toFixed(8)}
                                           </TableCell>
+                                          <TableCell>
+                                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                              <Tooltip title="Copy address" arrow>
+                                                <IconButton
+                                                  size="small"
+                                                  onClick={() => handleCopy(key.addresses.p2sh_p2wpkh)}
+                                                >
+                                                  <ContentCopyIcon fontSize="small" />
+                                                </IconButton>
+                                              </Tooltip>
+                                              <Tooltip title="Explore on blockchain.com" arrow>
+                                                <IconButton
+                                                  size="small"
+                                                  onClick={() => window.open(`https://www.blockchain.com/explorer/addresses/btc/${key.addresses.p2sh_p2wpkh}`, '_blank', 'noopener,noreferrer')}
+                                                >
+                                                  <OpenInNewIcon fontSize="small" />
+                                                </IconButton>
+                                              </Tooltip>
+                                            </Box>
+                                          </TableCell>
                                         </TableRow>
                                         <TableRow>
                                           <TableCell>{t.p2tr}</TableCell>
@@ -246,6 +327,26 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                           </TableCell>
                                           <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
                                             {key.balances.p2tr.toFixed(8)}
+                                          </TableCell>
+                                          <TableCell>
+                                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                              <Tooltip title="Copy address" arrow>
+                                                <IconButton
+                                                  size="small"
+                                                  onClick={() => handleCopy(key.addresses.p2tr)}
+                                                >
+                                                  <ContentCopyIcon fontSize="small" />
+                                                </IconButton>
+                                              </Tooltip>
+                                              <Tooltip title="Explore on blockchain.com" arrow>
+                                                <IconButton
+                                                  size="small"
+                                                  onClick={() => window.open(`https://www.blockchain.com/explorer/addresses/btc/${key.addresses.p2tr}`, '_blank', 'noopener,noreferrer')}
+                                                >
+                                                  <OpenInNewIcon fontSize="small" />
+                                                </IconButton>
+                                              </Tooltip>
+                                            </Box>
                                           </TableCell>
                                         </TableRow>
                                       </TableBody>
@@ -274,20 +375,17 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
       
       {/* Notification Snackbar */}
       <Snackbar
-        open={notification !== null}
+        open={!!notification}
         autoHideDuration={3000}
         onClose={() => setNotification(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        {notification && (
-          <Alert 
-            onClose={() => setNotification(null)} 
-            severity={notification.type}
-            sx={{ width: '100%' }}
-          >
-            {notification.message}
-          </Alert>
-        )}
+        <Alert 
+          severity={notification?.type}
+          onClose={() => setNotification(null)} 
+        >
+          {notification?.message}
+        </Alert>
       </Snackbar>
     </Box>
   );
