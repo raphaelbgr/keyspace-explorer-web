@@ -18,6 +18,38 @@ const nextConfig = {
   images: {
     domains: ['blockstream.info'],
   },
+  // Configure webpack for WebAssembly support (required for tiny-secp256k1)
+  webpack: (config, { isServer }) => {
+    // Enable WebAssembly support
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+      syncWebAssembly: true,
+    };
+
+    // Handle WASM files
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: 'webassembly/async',
+    });
+
+    // Optimize for client-side crypto libraries
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        crypto: false,
+        stream: false,
+        assert: false,
+        http: false,
+        https: false,
+        os: false,
+        url: false,
+        zlib: false,
+      };
+    }
+
+    return config;
+  },
   // Configure headers for security
   async headers() {
     return [

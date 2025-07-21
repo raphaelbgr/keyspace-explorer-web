@@ -47,6 +47,7 @@ import ScannerCard from './components/ScannerCard';
 import UltraOptimizedDashboard from './components/UltraOptimizedDashboard';
 import BalanceStatus from './components/BalanceStatus';
 import { useScannerStore } from './store/scannerStore';
+import { clientKeyGenerationService } from '../lib/services/ClientKeyGenerationService';
 
 interface PageData {
   pageNumber: string;
@@ -104,6 +105,7 @@ export default function Dashboard() {
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('table');
   const [keysPerPage, setKeysPerPage] = useState(45);
   const [currentKeysPage, setCurrentKeysPage] = useState(1);
+  const [generateLocally, setGenerateLocally] = useState(true);
 
   
   // Performance optimizations
@@ -118,6 +120,30 @@ export default function Dashboard() {
     // Calculate total pages based on maximum Bitcoin private key
     calculateTotalPages(BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140"));
   }, [calculateTotalPages]);
+
+  // Check browser compatibility for local generation
+  useEffect(() => {
+    const checkBrowserCompatibility = async () => {
+      const browserInfo = await clientKeyGenerationService.getBrowserInfo();
+      
+      if (!browserInfo.supported) {
+        setNotification({
+          message: '⚠️ Local generation not supported in this browser. Server generation will be used.',
+          type: 'error'
+        });
+        setGenerateLocally(false);
+      } else if (browserInfo.performance === 'low') {
+        setNotification({
+          message: `⚠️ Local generation may be slow: ${browserInfo.warnings.join(', ')}`,
+          type: 'info'
+        });
+      } else if (browserInfo.warnings.length > 0) {
+        console.warn('Browser compatibility warnings:', browserInfo.warnings);
+      }
+    };
+
+    checkBrowserCompatibility();
+  }, []);
 
   const toggleKeyExpansion = useThrottle(useCallback((keyIndex: number) => {
     const now = performance.now();
@@ -142,26 +168,62 @@ export default function Dashboard() {
     setError(null);
     
     try {
-      const response = await fetch('/api/generate-page', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          pageNumber: pageToGenerate,
-          keysPerPage: navKeysPerPage 
-        }),
-      });
+      let data;
+      
+      if (generateLocally) {
+        // Client-side generation
+        console.log('🚀 Using client-side generation');
+        const pageBigInt = BigInt(pageToGenerate);
+        data = await clientKeyGenerationService.generatePage(pageBigInt, navKeysPerPage);
+        
+        // Convert to the same format as API response
+        const serializedData = {
+          pageNumber: data.pageNumber.toString(),
+          keys: data.keys.map(key => ({
+            privateKey: key.privateKey,
+            pageNumber: key.pageNumber.toString(),
+            index: key.index,
+            addresses: key.addresses,
+            balances: key.balances,
+            totalBalance: key.totalBalance,
+          })),
+          totalPageBalance: data.totalPageBalance,
+          generatedAt: data.generatedAt.toISOString(),
+          balancesFetched: data.balancesFetched,
+        };
+        data = serializedData;
+      } else {
+        // Server-side generation (existing API call)
+        console.log('🌐 Using server-side generation');
+        const response = await fetch('/api/generate-page', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            pageNumber: pageToGenerate,
+            keysPerPage: navKeysPerPage 
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate page');
+        if (!response.ok) {
+          throw new Error('Failed to generate page');
+        }
+
+        data = await response.json();
       }
 
-      const data = await response.json();
       setPageData(data);
       setCurrentPage(pageToGenerate);
-      setNotification({ message: formatTranslation(t.pageGenerated, { page: pageToGenerate }), type: 'success' });
+      setNotification({ 
+        message: formatTranslation(t.pageGenerated, { page: pageToGenerate }) + 
+                (generateLocally ? ' ⚡ (Client-side)' : ' 🌐 (Server-side)'), 
+        type: 'success' 
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
-      setNotification({ message: t.failedToGenerate, type: 'error' });
+      setNotification({ 
+        message: t.failedToGenerate + (generateLocally ? ' (Client-side)' : ' (Server-side)'), 
+        type: 'error' 
+      });
     } finally {
       setLoading(false);
     }
@@ -173,23 +235,50 @@ export default function Dashboard() {
     setError(null);
     
     try {
-      // Call API directly first (API can handle string page numbers)
-      const requestBody = { 
-        pageNumber: pageNumber,  // Send as string to preserve precision
-        keysPerPage: navKeysPerPage 
-      };
+      let data;
       
-      const response = await fetch('/api/generate-page', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
+      if (generateLocally) {
+        // Client-side generation
+        console.log('🚀 Using client-side direct generation');
+        const pageBigInt = BigInt(pageNumber);
+        data = await clientKeyGenerationService.generatePage(pageBigInt, navKeysPerPage);
+        
+        // Convert to the same format as API response
+        const serializedData = {
+          pageNumber: data.pageNumber.toString(),
+          keys: data.keys.map(key => ({
+            privateKey: key.privateKey,
+            pageNumber: key.pageNumber.toString(),
+            index: key.index,
+            addresses: key.addresses,
+            balances: key.balances,
+            totalBalance: key.totalBalance,
+          })),
+          totalPageBalance: data.totalPageBalance,
+          generatedAt: data.generatedAt.toISOString(),
+          balancesFetched: data.balancesFetched,
+        };
+        data = serializedData;
+      } else {
+        // Server-side generation (existing API call)
+        console.log('🌐 Using server-side direct generation');
+        const requestBody = { 
+          pageNumber: pageNumber,  // Send as string to preserve precision
+          keysPerPage: navKeysPerPage 
+        };
+        
+        const response = await fetch('/api/generate-page', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate page');
+        if (!response.ok) {
+          throw new Error('Failed to generate page');
+        }
+
+        data = await response.json();
       }
-
-      const data = await response.json();
       
       // Update primary state directly
       setPageData(data);
@@ -209,7 +298,11 @@ export default function Dashboard() {
         // Could not parse page number for navigation store
       }
       
-      setNotification({ message: formatTranslation(t.pageGenerated, { page: pageNumber }), type: 'success' });
+      setNotification({ 
+        message: formatTranslation(t.pageGenerated, { page: pageNumber }) + 
+                (generateLocally ? ' ⚡ (Client-side)' : ' 🌐 (Server-side)'), 
+        type: 'success' 
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setNotification({ message: t.failedToGenerate, type: 'error' });
@@ -442,6 +535,8 @@ export default function Dashboard() {
           loading={loading}
           lastChecked={pageData?.generatedAt || null}
           hasFunds={pageData?.totalPageBalance ? pageData.totalPageBalance > 0 : false}
+          generateLocally={generateLocally}
+          onToggleLocalGeneration={setGenerateLocally}
         />
 
         {/* Keyspace Slider */}

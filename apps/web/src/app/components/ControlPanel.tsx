@@ -24,6 +24,7 @@ import {
   Settings as SettingsIcon
 } from '@mui/icons-material';
 import { useTranslation } from '../translations';
+import LocalGenerationToggle from './LocalGenerationToggle';
 
 interface ControlPanelProps {
   currentPage: string;
@@ -36,6 +37,9 @@ interface ControlPanelProps {
   loading: boolean;
   lastChecked: string | null;
   hasFunds: boolean;
+  // New props for local generation
+  generateLocally?: boolean;
+  onToggleLocalGeneration?: (enabled: boolean) => void;
 }
 
 const ControlPanel = memo<ControlPanelProps>(({
@@ -48,7 +52,9 @@ const ControlPanel = memo<ControlPanelProps>(({
   displayMode,
   loading,
   lastChecked,
-  hasFunds
+  hasFunds,
+  generateLocally,
+  onToggleLocalGeneration
 }) => {
   const t = useTranslation();
   
@@ -100,40 +106,37 @@ const ControlPanel = memo<ControlPanelProps>(({
           </Grid>
 
           <Grid item xs={12} md={2}>
+            <LocalGenerationToggle
+              enabled={generateLocally || false}
+              onToggle={onToggleLocalGeneration || (() => {})}
+              disabled={loading}
+            />
+          </Grid>
+
+          <Grid item xs={12} md={2}>
             <Tooltip title="Generate 45 keys for the specified page" arrow>
-              <Button
-                fullWidth
-                variant="contained"
-                onClick={onGeneratePage}
-                disabled={loading}
-                startIcon={<RefreshIcon />}
-                size="small"
-                sx={{ 
-                  background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
-                  '&:hover': { background: 'linear-gradient(45deg, #FF5252, #26A69A)' }
-                }}
-              >
-                {t.generatePage}
-              </Button>
+              <span>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  onClick={onGeneratePage}
+                  disabled={loading}
+                  startIcon={<RefreshIcon />}
+                  size="small"
+                  sx={{ 
+                    background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
+                    '&:hover': { background: 'linear-gradient(45deg, #FF5252, #26A69A)' }
+                  }}
+                >
+                  {t.generatePage}
+                </Button>
+              </span>
             </Tooltip>
           </Grid>
 
           <Grid item xs={12} md={2}>
             <Tooltip title={hasFunds ? "Funds found on this page" : "No funds found on this page"} arrow>
-              {!lastChecked ? (
-                <span>
-                  <Button
-                    fullWidth
-                    variant={hasFunds ? "contained" : "outlined"}
-                    color={hasFunds ? "success" : "error"}
-                    disabled={!lastChecked}
-                    startIcon={hasFunds ? <PlayIcon /> : <StopIcon />}
-                    size="small"
-                  >
-                    {hasFunds ? t.funds : "No Funds"}
-                  </Button>
-                </span>
-              ) : (
+              <span>
                 <Button
                   fullWidth
                   variant={hasFunds ? "contained" : "outlined"}
@@ -144,7 +147,7 @@ const ControlPanel = memo<ControlPanelProps>(({
                 >
                   {hasFunds ? t.funds : "No Funds"}
                 </Button>
-              )}
+              </span>
             </Tooltip>
           </Grid>
 
