@@ -38,6 +38,7 @@ import {
 import { useThemeStore } from './store/themeStore';
 import { useLanguageStore } from './store/languageStore';
 import { useNavigationStore } from './store/navigationStore';
+import RandomKeyCard from './components/RandomKeyCard';
 import { useTranslation, formatTranslation } from './translations';
 import FloatingNavigation from './components/FloatingNavigation';
 import ControlPanel from './components/ControlPanel';
@@ -173,7 +174,7 @@ export default function Dashboard() {
       if (generateLocally) {
         // Client-side generation
         console.log('🚀 Using client-side generation');
-        const pageBigInt = BigInt(pageToGenerate);
+        const pageBigInt = safeToBigInt(pageToGenerate);
         data = await clientKeyGenerationService.generatePage(pageBigInt, navKeysPerPage);
         
         // Convert to the same format as API response
@@ -213,6 +214,51 @@ export default function Dashboard() {
 
       setPageData(data);
       setCurrentPage(pageToGenerate);
+      
+      // Check balances after page generation
+      if (data) {
+        try {
+          const balanceData = await fetch('/api/balances', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              addresses: data.keys.flatMap((key: any) => [
+                key.addresses.p2pkh_compressed,
+                key.addresses.p2pkh_uncompressed,
+                key.addresses.p2wpkh,
+                key.addresses.p2sh_p2wpkh,
+                key.addresses.p2tr
+              ])
+            }),
+          });
+          
+          if (balanceData.ok) {
+            const balances = await balanceData.json();
+            // Update page data with balances
+            const updatedData = { ...data };
+            updatedData.keys = data.keys.map((key: any) => {
+              const keyBalances = {
+                p2pkh_compressed: balances[key.addresses.p2pkh_compressed] || 0,
+                p2pkh_uncompressed: balances[key.addresses.p2pkh_uncompressed] || 0,
+                p2wpkh: balances[key.addresses.p2wpkh] || 0,
+                p2sh_p2wpkh: balances[key.addresses.p2sh_p2wpkh] || 0,
+                p2tr: balances[key.addresses.p2tr] || 0,
+              };
+              const total = Object.values(keyBalances).reduce((sum: number, balance: number) => sum + balance, 0);
+              return {
+                ...key,
+                balances: keyBalances,
+                totalBalance: total
+              };
+            });
+            updatedData.totalPageBalance = updatedData.keys.reduce((sum: number, key: any) => sum + key.totalBalance, 0);
+            setPageData(updatedData);
+          }
+        } catch (balanceError) {
+          console.warn('Failed to fetch balances:', balanceError);
+        }
+      }
+      
       setNotification({ 
         message: formatTranslation(t.pageGenerated, { page: pageToGenerate }) + 
                 (generateLocally ? ' ⚡ (Client-side)' : ' 🌐 (Server-side)'), 
@@ -229,6 +275,31 @@ export default function Dashboard() {
     }
   };
 
+  // Helper function to safely convert to BigInt (handles scientific notation)
+  const safeToBigInt = (value: string | number): bigint => {
+    try {
+      // If it's a number in scientific notation, convert to string first
+      const str = typeof value === 'number' ? value.toFixed(0) : value;
+      
+      // Remove scientific notation by parsing as number first if needed
+      if (str.includes('e') || str.includes('E')) {
+        const num = parseFloat(str);
+        if (!isFinite(num) || num < 0) {
+          throw new Error('Invalid number');
+        }
+        // Convert to integer string representation
+        const intStr = Math.floor(num).toString();
+        return BigInt(intStr);
+      }
+      
+      // Direct conversion for normal strings
+      return BigInt(str);
+    } catch (error) {
+      console.error('Failed to convert to BigInt:', value, error);
+      return BigInt(1); // Fallback to page 1
+    }
+  };
+
   // NEW: Direct page change that bypasses slider state
   const handleDirectPageChange = async (pageNumber: string) => {
     setLoading(true);
@@ -240,7 +311,7 @@ export default function Dashboard() {
       if (generateLocally) {
         // Client-side generation
         console.log('🚀 Using client-side direct generation');
-        const pageBigInt = BigInt(pageNumber);
+        const pageBigInt = safeToBigInt(pageNumber);
         data = await clientKeyGenerationService.generatePage(pageBigInt, navKeysPerPage);
         
         // Convert to the same format as API response
@@ -285,6 +356,50 @@ export default function Dashboard() {
       setCurrentPage(pageNumber);
       setCurrentKeysPage(1); // Reset to first page of keys
       
+      // Check balances after page generation
+      if (data) {
+        try {
+          const balanceData = await fetch('/api/balances', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              addresses: data.keys.flatMap((key: any) => [
+                key.addresses.p2pkh_compressed,
+                key.addresses.p2pkh_uncompressed,
+                key.addresses.p2wpkh,
+                key.addresses.p2sh_p2wpkh,
+                key.addresses.p2tr
+              ])
+            }),
+          });
+          
+          if (balanceData.ok) {
+            const balances = await balanceData.json();
+            // Update page data with balances
+            const updatedData = { ...data };
+            updatedData.keys = data.keys.map((key: any) => {
+              const keyBalances = {
+                p2pkh_compressed: balances[key.addresses.p2pkh_compressed] || 0,
+                p2pkh_uncompressed: balances[key.addresses.p2pkh_uncompressed] || 0,
+                p2wpkh: balances[key.addresses.p2wpkh] || 0,
+                p2sh_p2wpkh: balances[key.addresses.p2sh_p2wpkh] || 0,
+                p2tr: balances[key.addresses.p2tr] || 0,
+              };
+              const total = Object.values(keyBalances).reduce((sum: number, balance: number) => sum + balance, 0);
+              return {
+                ...key,
+                balances: keyBalances,
+                totalBalance: total
+              };
+            });
+            updatedData.totalPageBalance = updatedData.keys.reduce((sum: number, key: any) => sum + key.totalBalance, 0);
+            setPageData(updatedData);
+          }
+        } catch (balanceError) {
+          console.warn('Failed to fetch balances:', balanceError);
+        }
+      }
+      
       // Only update navigation store if number is within safe range
       try {
         const pageNum = parseFloat(pageNumber);
@@ -311,37 +426,130 @@ export default function Dashboard() {
     }
   };
 
-  const handleRandomPage = async () => {
+  const handleRandomPage = async (): Promise<void> => {
     setLoading(true);
     setError(null);
     
     try {
       // Generate random page using navigation store
       const randomPage = generateRandomPage();
-      const response = await fetch('/api/generate-page', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageNumber: randomPage.toString() }),
-      });
+      const randomPageStr = randomPage.toString();
+      console.log(`🎲 Generated random page: ${randomPageStr} (mode: ${generateLocally ? 'local' : 'server'})`);
+      
+      let data;
+      
+      if (generateLocally) {
+        // Local generation
+        console.log('🖥️ Using local generation for random page');
+        const rawData = await clientKeyGenerationService.generatePage(
+          safeToBigInt(randomPageStr), 
+          navKeysPerPage
+        );
+        
+        // Convert Date to string for consistency
+        const serializedData = {
+          pageNumber: rawData.pageNumber.toString(),
+          keys: rawData.keys.map(key => ({
+            privateKey: key.privateKey,
+            pageNumber: key.pageNumber.toString(),
+            index: key.index,
+            addresses: key.addresses,
+            balances: key.balances,
+            totalBalance: key.totalBalance,
+          })),
+          totalPageBalance: rawData.totalPageBalance,
+          generatedAt: rawData.generatedAt.toISOString(),
+          balancesFetched: rawData.balancesFetched,
+        };
+        data = serializedData;
+      } else {
+        // Server generation
+        console.log('🌐 Using server generation for random page');
+        const response = await fetch('/api/generate-page', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            pageNumber: randomPageStr,
+            keysPerPage: navKeysPerPage 
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate random page');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
+          throw new Error(errorData.error || `Server error: ${response.status}`);
+        }
+
+        data = await response.json();
       }
-
-      const data = await response.json();
+      
+      // Update state and check balances
       setPageData(data);
       setCurrentPage(data.pageNumber);
+      setCurrentKeysPage(1); // Reset to first page of keys
       
       // Convert randomPage to number for navigation store (handle large numbers gracefully)
-      const pageForNav = typeof randomPage === 'string' ? 
-        parseInt(randomPage) || 1 : 
-        randomPage;
-      setNavCurrentPage(pageForNav);
+      try {
+        const pageNum = parseFloat(randomPageStr);
+        if (pageNum <= Number.MAX_SAFE_INTEGER && pageNum >= 1) {
+          setNavCurrentPage(Math.floor(pageNum));
+        }
+      } catch {
+        // Could not parse page number for navigation store
+      }
       
-      setNotification({ message: `Random page ${data.pageNumber} generated successfully`, type: 'success' });
+      // Check balances after page generation
+      if (data) {
+        try {
+          const balanceData = await fetch('/api/balances', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              addresses: data.keys.flatMap((key: any) => [
+                key.addresses.p2pkh_compressed,
+                key.addresses.p2pkh_uncompressed,
+                key.addresses.p2wpkh,
+                key.addresses.p2sh_p2wpkh,
+                key.addresses.p2tr
+              ])
+            }),
+          });
+          
+          if (balanceData.ok) {
+            const balances = await balanceData.json();
+            // Update page data with balances
+            const updatedData = { ...data };
+            updatedData.keys = data.keys.map((key: any) => {
+              const keyBalances = {
+                p2pkh_compressed: balances[key.addresses.p2pkh_compressed] || 0,
+                p2pkh_uncompressed: balances[key.addresses.p2pkh_uncompressed] || 0,
+                p2wpkh: balances[key.addresses.p2wpkh] || 0,
+                p2sh_p2wpkh: balances[key.addresses.p2sh_p2wpkh] || 0,
+                p2tr: balances[key.addresses.p2tr] || 0,
+              };
+              const total = Object.values(keyBalances).reduce((sum: number, balance: number) => sum + balance, 0);
+              return {
+                ...key,
+                balances: keyBalances,
+                totalBalance: total
+              };
+            });
+            updatedData.totalPageBalance = updatedData.keys.reduce((sum: number, key: any) => sum + key.totalBalance, 0);
+            setPageData(updatedData);
+          }
+        } catch (balanceError) {
+          console.warn('Failed to fetch balances:', balanceError);
+        }
+      }
+      
+      setNotification({ 
+        message: `🎲 Random page ${data.pageNumber} generated successfully ${generateLocally ? '(Local)' : '(Server)'}`, 
+        type: 'success' 
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      setNotification({ message: 'Failed to generate random page', type: 'error' });
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Random page generation failed:', errorMessage);
+      setError(errorMessage);
+      setNotification({ message: '❌ Failed to generate random page', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -421,7 +629,7 @@ export default function Dashboard() {
     // For very large numbers, try to parse as BigInt first, then convert to number
     if (page.length > 15) {
       try {
-        const pageBigInt = BigInt(page);
+        const pageBigInt = safeToBigInt(page);
         // Use BigInt for very large numbers, Number for smaller ones
         if (pageBigInt > BigInt(Number.MAX_SAFE_INTEGER)) {
           // For very large page numbers, work with string representation
@@ -454,7 +662,7 @@ export default function Dashboard() {
     // Handle large page numbers properly
     if (currentPage.length > 15) {
       try {
-        const currentPageBigInt = BigInt(currentPage);
+        const currentPageBigInt = safeToBigInt(currentPage);
         currentPosition = Number((currentPageBigInt - BigInt(1)) * BigInt(keysPerPage));
       } catch {
         // Fallback for smaller numbers
@@ -547,16 +755,142 @@ export default function Dashboard() {
           disabled={loading}
         />
 
+        {/* Simple Page Navigation Card */}
+        <Card sx={{ mb: 2, p: 2 }}>
+          {/* Header */}
+          <Box sx={{ textAlign: 'center', mb: 2 }}>
+            <Typography variant="h6" sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+              📄 Page Navigation
+            </Typography>
+          </Box>
+          
+          {/* Page Info */}
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 'medium' }}>
+              Page {Number(currentPage).toLocaleString()} of {Number(navTotalPages).toLocaleString()}
+            </Typography>
+          </Box>
+          
+          {/* Navigation Buttons - Centered at Bottom */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 0.5 }}>
+            <Tooltip title="First Page" arrow>
+              <IconButton
+                size="small"
+                onClick={() => handlePageChange('1')}
+                disabled={currentPage === '1'}
+                sx={{ 
+                  border: '1px solid',
+                  borderColor: 'primary.main',
+                  '&:disabled': { borderColor: 'action.disabled' }
+                }}
+              >
+                <FirstPageIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            
+            <Tooltip title="Previous Page" arrow>
+              <IconButton
+                size="small"
+                onClick={() => {
+                  try {
+                    // Use BigInt arithmetic for reliable large number handling
+                    const currentPageBigInt = safeToBigInt(currentPage);
+                    if (currentPageBigInt > BigInt(1)) {
+                      const previousPage = currentPageBigInt - BigInt(1);
+                      handlePageChange(previousPage.toString());
+                    }
+                  } catch (error) {
+                    console.error('Previous page calculation error:', error);
+                    // Fallback to string-based parsing
+                    const currentPageNum = parseFloat(currentPage);
+                    if (currentPageNum > 1) {
+                      handlePageChange(Math.max(1, currentPageNum - 1).toString());
+                    }
+                  }
+                }}
+                disabled={currentPage === '1'}
+                sx={{ 
+                  border: '1px solid',
+                  borderColor: 'primary.main',
+                  '&:disabled': { borderColor: 'action.disabled' }
+                }}
+              >
+                <NavigateBeforeIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            
+            <Typography variant="body2" color="text.secondary" sx={{ mx: 1, minWidth: '20px', textAlign: 'center' }}>
+              |
+            </Typography>
+            
+            <Tooltip title="Next Page" arrow>
+              <IconButton
+                size="small"
+                onClick={() => {
+                  try {
+                    // Use BigInt arithmetic for reliable large number handling  
+                    const currentPageBigInt = safeToBigInt(currentPage);
+                    const totalPagesBigInt = safeToBigInt(navTotalPages.toString());
+                    if (currentPageBigInt < totalPagesBigInt) {
+                      const nextPage = currentPageBigInt + BigInt(1);
+                      handlePageChange(nextPage.toString());
+                    }
+                  } catch (error) {
+                    console.error('Next page calculation error:', error);
+                    // Fallback to string-based parsing
+                    const currentPageNum = parseFloat(currentPage);
+                    const totalPagesNum = Number(navTotalPages);
+                    if (currentPageNum < totalPagesNum) {
+                      handlePageChange((currentPageNum + 1).toString());
+                    }
+                  }
+                }}
+                disabled={parseFloat(currentPage) >= Number(navTotalPages)}
+                sx={{ 
+                  border: '1px solid',
+                  borderColor: 'primary.main',
+                  '&:disabled': { borderColor: 'action.disabled' }
+                }}
+              >
+                <NavigateNextIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            
+            <Tooltip title="Last Page" arrow>
+              <IconButton
+                size="small"
+                onClick={() => handlePageChange(navTotalPages.toString())}
+                disabled={parseFloat(currentPage) >= Number(navTotalPages)}
+                sx={{ 
+                  border: '1px solid',
+                  borderColor: 'primary.main',
+                  '&:disabled': { borderColor: 'action.disabled' }
+                }}
+              >
+                <LastPageIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </Card>
+
         {/* Advanced Navigation */}
         <AdvancedNavigation
           currentPage={currentPage}
           totalPages={Number(navTotalPages)}
           onPageChange={handlePageChange}
           onDirectPageChange={handleDirectPageChange}
-          onRandomPage={handleRandomPage}
-          onRandomKeyInPage={handleRandomKeyInPage}
           keysPerPage={navKeysPerPage}
           onKeysPerPageChange={handleKeysPerPageChange}
+        />
+
+        {/* Random Key Card */}
+        <RandomKeyCard
+          currentPage={currentPage}
+          onRandomPage={handleRandomPage}
+          onRandomKeyInPage={handleRandomKeyInPage}
+          keysPerPage={keysPerPage}
+          generateLocally={generateLocally}
+          disabled={loading}
         />
 
         {/* Scanner Card */}

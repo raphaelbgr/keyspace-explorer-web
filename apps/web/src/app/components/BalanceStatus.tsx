@@ -119,7 +119,7 @@ const BalanceStatus = ({
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <ScheduleIcon fontSize="small" color="action" />
                 <Typography variant="body2" color="text.secondary">
-                  Generated: {new Date(lastChecked).toLocaleString()}
+                  Generated: {typeof lastChecked === 'string' ? new Date(lastChecked).toLocaleString() : 'Invalid date'}
                 </Typography>
               </Box>
             )}

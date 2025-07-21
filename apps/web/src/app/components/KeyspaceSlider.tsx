@@ -51,16 +51,18 @@ interface KeyspaceSliderProps {
 const SLIDER_MAX = 1000000; // 1 million steps for smooth sliding
 
 export default function KeyspaceSlider({ 
-  currentPage, // string, can be BigInt
+  currentPage, 
   totalPages, 
   onPageChange, 
-  disabled = false 
+  disabled = false,
 }: KeyspaceSliderProps) {
   const theme = useTheme();
   const t = useTranslation();
+  
+  // Existing states
+  const [inputValue, setInputValue] = useState(currentPage);
   const [isDragging, setIsDragging] = useState(false);
   const [sliderValue, setSliderValue] = useState(0);
-  const [inputValue, setInputValue] = useState(currentPage);
 
   // Always treat totalPages as Decimal for precision
   const totalPagesDecimal = new Decimal(totalPages.toString());

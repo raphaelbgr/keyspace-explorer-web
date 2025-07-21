@@ -42,6 +42,13 @@ interface AddressModalProps {
       p2sh_p2wpkh: string;
       p2tr: string;
     };
+    balances?: {
+      p2pkh_compressed: number;
+      p2pkh_uncompressed: number;
+      p2wpkh: number;
+      p2sh_p2wpkh: number;
+      p2tr: number;
+    };
     totalBalance: number;
   } | null;
   keyNumber: number;
@@ -293,11 +300,11 @@ const AddressModal = ({ open, onClose, keyData, keyNumber }: AddressModalProps) 
   if (!keyData) return null;
 
   const addressTypes = [
-    { label: 'P2PKH (Compressed)', value: keyData.addresses.p2pkh_compressed, type: 'p2pkh_compressed' },
-    { label: 'P2PKH (Uncompressed)', value: keyData.addresses.p2pkh_uncompressed, type: 'p2pkh_uncompressed' },
-    { label: 'P2WPKH', value: keyData.addresses.p2wpkh, type: 'p2wpkh' },
-    { label: 'P2SH-P2WPKH', value: keyData.addresses.p2sh_p2wpkh, type: 'p2sh_p2wpkh' },
-    { label: 'P2TR', value: keyData.addresses.p2tr, type: 'p2tr' },
+    { label: 'P2PKH (Compressed)', value: keyData.addresses.p2pkh_compressed, type: 'p2pkh_compressed', balance: (keyData as any).balances?.p2pkh_compressed || 0 },
+    { label: 'P2PKH (Uncompressed)', value: keyData.addresses.p2pkh_uncompressed, type: 'p2pkh_uncompressed', balance: (keyData as any).balances?.p2pkh_uncompressed || 0 },
+    { label: 'P2WPKH', value: keyData.addresses.p2wpkh, type: 'p2wpkh', balance: (keyData as any).balances?.p2wpkh || 0 },
+    { label: 'P2SH-P2WPKH', value: keyData.addresses.p2sh_p2wpkh, type: 'p2sh_p2wpkh', balance: (keyData as any).balances?.p2sh_p2wpkh || 0 },
+    { label: 'P2TR', value: keyData.addresses.p2tr, type: 'p2tr', balance: (keyData as any).balances?.p2tr || 0 },
   ];
 
   return (
@@ -349,21 +356,61 @@ const AddressModal = ({ open, onClose, keyData, keyNumber }: AddressModalProps) 
                 <TableRow>
                   <TableCell>Address Type</TableCell>
                   <TableCell>Address</TableCell>
+                  <TableCell align="center">Balance</TableCell>
                   <TableCell align="center">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {addressTypes.map((address) => (
-                  <TableRow key={address.type} hover>
+                  <TableRow 
+                    key={address.type} 
+                    hover
+                    sx={{
+                      bgcolor: address.balance > 0 ? 'success.main' : 'transparent',
+                      border: address.balance > 0 ? '2px solid' : 'none',
+                      borderColor: 'success.light',
+                      '&:hover': {
+                        bgcolor: address.balance > 0 ? 'success.dark' : 'action.hover',
+                      }
+                    }}
+                  >
                     <TableCell>
-                      <Typography variant="body2" fontWeight="medium">
-                        {address.label}
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" fontWeight="medium">
+                          {address.label}
+                        </Typography>
+                        {address.balance > 0 && (
+                          <Chip 
+                            label="💰 FUNDED!" 
+                            size="small" 
+                            color="success" 
+                            sx={{ 
+                              fontWeight: 'bold',
+                              animation: 'pulse 2s infinite'
+                            }} 
+                          />
+                        )}
+                      </Box>
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>
                         {address.value}
                       </Typography>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                        <Typography variant="body2" fontFamily="monospace" fontWeight={address.balance > 0 ? 'bold' : 'normal'}>
+                          {address.balance.toFixed(8)} BTC
+                        </Typography>
+                        {address.balance > 0 && (
+                          <Chip 
+                            label="💰" 
+                            size="small" 
+                            color="success" 
+                            sx={{ minWidth: 24, height: 20 }}
+                          />
+                        )}
+                      </Box>
                     </TableCell>
                     <TableCell align="center">
                       <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>

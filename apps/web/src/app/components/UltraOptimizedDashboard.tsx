@@ -139,7 +139,7 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                 
                 return (
                   <React.Fragment key={index}>
-                    <TableRow hover>
+                    <TableRow hover data-key-index={index}>
                       <TableCell>
                         <IconButton
                           size="small"
@@ -220,13 +220,51 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                         </TableRow>
                                       </TableHead>
                                       <TableBody>
-                                        <TableRow>
-                                          <TableCell>{t.p2pkhCompressed}</TableCell>
+                                        <TableRow
+                                          sx={{
+                                            bgcolor: key.balances.p2pkh_compressed > 0 ? 'success.main' : 'transparent',
+                                            border: key.balances.p2pkh_compressed > 0 ? '2px solid' : 'none',
+                                            borderColor: 'success.light',
+                                            '&:hover': {
+                                              bgcolor: key.balances.p2pkh_compressed > 0 ? 'success.dark' : 'action.hover',
+                                            }
+                                          }}
+                                        >
+                                          <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                              <Typography variant="body2" fontWeight="medium">
+                                                {t.p2pkhCompressed}
+                                              </Typography>
+                                              {key.balances.p2pkh_compressed > 0 && (
+                                                <Chip 
+                                                  label="💰 FUNDED!" 
+                                                  size="small" 
+                                                  color="success" 
+                                                  sx={{ 
+                                                    fontWeight: 'bold',
+                                                    animation: 'pulse 2s infinite'
+                                                  }} 
+                                                />
+                                              )}
+                                            </Box>
+                                          </TableCell>
                                           <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.7rem', wordBreak: 'break-all' }}>
                                             {key.addresses.p2pkh_compressed}
                                           </TableCell>
-                                          <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
-                                            {key.balances.p2pkh_compressed.toFixed(8)}
+                                          <TableCell align="right">
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                                              <Typography variant="body2" fontFamily="monospace" fontWeight={key.balances.p2pkh_compressed > 0 ? 'bold' : 'normal'}>
+                                                {key.balances.p2pkh_compressed.toFixed(8)}
+                                              </Typography>
+                                              {key.balances.p2pkh_compressed > 0 && (
+                                                <Chip 
+                                                  label="💰" 
+                                                  size="small" 
+                                                  color="success" 
+                                                  sx={{ minWidth: 24, height: 20 }}
+                                                />
+                                              )}
+                                            </Box>
                                           </TableCell>
                                           <TableCell>
                                             <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -249,13 +287,51 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                             </Box>
                                           </TableCell>
                                         </TableRow>
-                                        <TableRow>
-                                          <TableCell>{t.p2pkhUncompressed}</TableCell>
+                                        <TableRow
+                                          sx={{
+                                            bgcolor: key.balances.p2pkh_uncompressed > 0 ? 'success.main' : 'transparent',
+                                            border: key.balances.p2pkh_uncompressed > 0 ? '2px solid' : 'none',
+                                            borderColor: 'success.light',
+                                            '&:hover': {
+                                              bgcolor: key.balances.p2pkh_uncompressed > 0 ? 'success.dark' : 'action.hover',
+                                            }
+                                          }}
+                                        >
+                                          <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                              <Typography variant="body2" fontWeight="medium">
+                                                {t.p2pkhUncompressed}
+                                              </Typography>
+                                              {key.balances.p2pkh_uncompressed > 0 && (
+                                                <Chip 
+                                                  label="💰 FUNDED!" 
+                                                  size="small" 
+                                                  color="success" 
+                                                  sx={{ 
+                                                    fontWeight: 'bold',
+                                                    animation: 'pulse 2s infinite'
+                                                  }} 
+                                                />
+                                              )}
+                                            </Box>
+                                          </TableCell>
                                           <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.7rem', wordBreak: 'break-all' }}>
                                             {key.addresses.p2pkh_uncompressed}
                                           </TableCell>
-                                          <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
-                                            {key.balances.p2pkh_uncompressed.toFixed(8)}
+                                          <TableCell align="right">
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                                              <Typography variant="body2" fontFamily="monospace" fontWeight={key.balances.p2pkh_uncompressed > 0 ? 'bold' : 'normal'}>
+                                                {key.balances.p2pkh_uncompressed.toFixed(8)}
+                                              </Typography>
+                                              {key.balances.p2pkh_uncompressed > 0 && (
+                                                <Chip 
+                                                  label="💰" 
+                                                  size="small" 
+                                                  color="success" 
+                                                  sx={{ minWidth: 24, height: 20 }}
+                                                />
+                                              )}
+                                            </Box>
                                           </TableCell>
                                           <TableCell>
                                             <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -278,13 +354,51 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                             </Box>
                                           </TableCell>
                                         </TableRow>
-                                        <TableRow>
-                                          <TableCell>{t.p2wpkh}</TableCell>
+                                        <TableRow
+                                          sx={{
+                                            bgcolor: key.balances.p2wpkh > 0 ? 'success.main' : 'transparent',
+                                            border: key.balances.p2wpkh > 0 ? '2px solid' : 'none',
+                                            borderColor: 'success.light',
+                                            '&:hover': {
+                                              bgcolor: key.balances.p2wpkh > 0 ? 'success.dark' : 'action.hover',
+                                            }
+                                          }}
+                                        >
+                                          <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                              <Typography variant="body2" fontWeight="medium">
+                                                {t.p2wpkh}
+                                              </Typography>
+                                              {key.balances.p2wpkh > 0 && (
+                                                <Chip 
+                                                  label="💰 FUNDED!" 
+                                                  size="small" 
+                                                  color="success" 
+                                                  sx={{ 
+                                                    fontWeight: 'bold',
+                                                    animation: 'pulse 2s infinite'
+                                                  }} 
+                                                />
+                                              )}
+                                            </Box>
+                                          </TableCell>
                                           <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.7rem', wordBreak: 'break-all' }}>
                                             {key.addresses.p2wpkh}
                                           </TableCell>
-                                          <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
-                                            {key.balances.p2wpkh.toFixed(8)}
+                                          <TableCell align="right">
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                                              <Typography variant="body2" fontFamily="monospace" fontWeight={key.balances.p2wpkh > 0 ? 'bold' : 'normal'}>
+                                                {key.balances.p2wpkh.toFixed(8)}
+                                              </Typography>
+                                              {key.balances.p2wpkh > 0 && (
+                                                <Chip 
+                                                  label="💰" 
+                                                  size="small" 
+                                                  color="success" 
+                                                  sx={{ minWidth: 24, height: 20 }}
+                                                />
+                                              )}
+                                            </Box>
                                           </TableCell>
                                           <TableCell>
                                             <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -307,13 +421,51 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                             </Box>
                                           </TableCell>
                                         </TableRow>
-                                        <TableRow>
-                                          <TableCell>{t.p2shP2wpkh}</TableCell>
+                                        <TableRow
+                                          sx={{
+                                            bgcolor: key.balances.p2sh_p2wpkh > 0 ? 'success.main' : 'transparent',
+                                            border: key.balances.p2sh_p2wpkh > 0 ? '2px solid' : 'none',
+                                            borderColor: 'success.light',
+                                            '&:hover': {
+                                              bgcolor: key.balances.p2sh_p2wpkh > 0 ? 'success.dark' : 'action.hover',
+                                            }
+                                          }}
+                                        >
+                                          <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                              <Typography variant="body2" fontWeight="medium">
+                                                {t.p2shP2wpkh}
+                                              </Typography>
+                                              {key.balances.p2sh_p2wpkh > 0 && (
+                                                <Chip 
+                                                  label="💰 FUNDED!" 
+                                                  size="small" 
+                                                  color="success" 
+                                                  sx={{ 
+                                                    fontWeight: 'bold',
+                                                    animation: 'pulse 2s infinite'
+                                                  }} 
+                                                />
+                                              )}
+                                            </Box>
+                                          </TableCell>
                                           <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.7rem', wordBreak: 'break-all' }}>
                                             {key.addresses.p2sh_p2wpkh}
                                           </TableCell>
-                                          <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
-                                            {key.balances.p2sh_p2wpkh.toFixed(8)}
+                                          <TableCell align="right">
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                                              <Typography variant="body2" fontFamily="monospace" fontWeight={key.balances.p2sh_p2wpkh > 0 ? 'bold' : 'normal'}>
+                                                {key.balances.p2sh_p2wpkh.toFixed(8)}
+                                              </Typography>
+                                              {key.balances.p2sh_p2wpkh > 0 && (
+                                                <Chip 
+                                                  label="💰" 
+                                                  size="small" 
+                                                  color="success" 
+                                                  sx={{ minWidth: 24, height: 20 }}
+                                                />
+                                              )}
+                                            </Box>
                                           </TableCell>
                                           <TableCell>
                                             <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -336,13 +488,51 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                             </Box>
                                           </TableCell>
                                         </TableRow>
-                                        <TableRow>
-                                          <TableCell>{t.p2tr}</TableCell>
+                                        <TableRow
+                                          sx={{
+                                            bgcolor: key.balances.p2tr > 0 ? 'success.main' : 'transparent',
+                                            border: key.balances.p2tr > 0 ? '2px solid' : 'none',
+                                            borderColor: 'success.light',
+                                            '&:hover': {
+                                              bgcolor: key.balances.p2tr > 0 ? 'success.dark' : 'action.hover',
+                                            }
+                                          }}
+                                        >
+                                          <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                              <Typography variant="body2" fontWeight="medium">
+                                                {t.p2tr}
+                                              </Typography>
+                                              {key.balances.p2tr > 0 && (
+                                                <Chip 
+                                                  label="💰 FUNDED!" 
+                                                  size="small" 
+                                                  color="success" 
+                                                  sx={{ 
+                                                    fontWeight: 'bold',
+                                                    animation: 'pulse 2s infinite'
+                                                  }} 
+                                                />
+                                              )}
+                                            </Box>
+                                          </TableCell>
                                           <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.7rem', wordBreak: 'break-all' }}>
                                             {key.addresses.p2tr}
                                           </TableCell>
-                                          <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
-                                            {key.balances.p2tr.toFixed(8)}
+                                          <TableCell align="right">
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                                              <Typography variant="body2" fontFamily="monospace" fontWeight={key.balances.p2tr > 0 ? 'bold' : 'normal'}>
+                                                {key.balances.p2tr.toFixed(8)}
+                                              </Typography>
+                                              {key.balances.p2tr > 0 && (
+                                                <Chip 
+                                                  label="💰" 
+                                                  size="small" 
+                                                  color="success" 
+                                                  sx={{ minWidth: 24, height: 20 }}
+                                                />
+                                              )}
+                                            </Box>
                                           </TableCell>
                                           <TableCell>
                                             <Box sx={{ display: 'flex', gap: 0.5 }}>

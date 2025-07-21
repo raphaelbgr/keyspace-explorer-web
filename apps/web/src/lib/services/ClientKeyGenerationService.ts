@@ -129,7 +129,7 @@ export class ClientKeyGenerationService {
       pageNumber,
       keys,
       totalPageBalance: 0,
-      generatedAt: new Date(),
+      generatedAt: new Date(), // This will be converted to ISO string in the calling code
       balancesFetched: false,
     };
   }

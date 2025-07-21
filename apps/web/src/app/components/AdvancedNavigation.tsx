@@ -4,71 +4,33 @@ import {
   Button,
   TextField,
   Tooltip,
-  IconButton,
   Typography,
   Chip,
   Grid,
-  Paper,
   Divider,
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Select,
-  MenuItem,
-  Card
 } from '@mui/material';
-import { ExpandMore, ChevronLeft, ChevronRight, Casino } from '@mui/icons-material';
-import CasinoIcon from '@mui/icons-material/Casino'; // Added missing import
-import { secureRandomKeyInPage, diceRollAnimation } from '../utils/secureRandom';
+import { ExpandMore } from '@mui/icons-material';
 import { useTranslation } from '../translations';
-import { useNavigationStore } from '../store/navigationStore';
 import Decimal from 'decimal.js';
 
 // Configure Decimal.js for very large numbers
 Decimal.set({
-  precision: 80,     // Support up to 80 significant digits
-  rounding: 1,       // ROUND_DOWN
-  toExpNeg: -80,     // Don't use exponential notation for small numbers
-  toExpPos: 80,      // Don't use exponential notation for large numbers
-  minE: -80,         // Minimum exponent
-  maxE: 80           // Maximum exponent
+  precision: 80,
+  rounding: 1,
+  toExpNeg: -80,
+  toExpPos: 80,
+  minE: -80,
+  maxE: 80
 });
 
-// Helper function to safely parse page numbers (including scientific notation)
-const parsePageNumberToDecimal = (pageValue: number | string): Decimal => {
-  try {
-    // First try direct Decimal parsing
-    const result = new Decimal(pageValue.toString());
-    return result;
-  } catch (error) {
-    try {
-      // If that fails, parse as Number first (handles scientific notation)
-      const asNumber = Number(pageValue);
-      if (isNaN(asNumber) || !isFinite(asNumber)) {
-        return new Decimal('1'); // fallback to page 1
-      }
-      // Convert to string and then to Decimal to avoid precision loss
-      const result = new Decimal(Math.floor(asNumber).toString());
-      return result;
-    } catch (secondError) {
-      return new Decimal('1'); // fallback to page 1
-    }
-  }
-};
-
-// Helper function to format numbers in normal decimal notation (no scientific notation)
-const formatPageNumber = (pageValue: number | string): string => {
-  const decimal = parsePageNumberToDecimal(pageValue);
-  return decimal.toFixed(0); // Always return as normal decimal string
-};
-
 interface AdvancedNavigationProps {
-  currentPage: number | string;  // Accept both number and string (for scientific notation)
+  currentPage: string;
   totalPages: number;
   onPageChange: (page: string) => void;
-  onDirectPageChange?: (page: string) => Promise<void>; // NEW: Direct API call bypass
-  onRandomPage: () => void;
-  onRandomKeyInPage?: (keyIndex: number) => void; // NEW: Random key within current page
+  onDirectPageChange?: (pageNumber: string) => Promise<void>;
   keysPerPage: number;
   onKeysPerPageChange: (keysPerPage: number) => void;
 }
@@ -77,80 +39,38 @@ const AdvancedNavigation = ({
   currentPage,
   totalPages,
   onPageChange,
-  onDirectPageChange, // NEW: Direct API call function
-  onRandomPage,
-  onRandomKeyInPage,
+  onDirectPageChange,
   keysPerPage,
   onKeysPerPageChange
 }: AdvancedNavigationProps) => {
   const t = useTranslation();
-  const { getLastPageNumber } = useNavigationStore();
   const [customPage, setCustomPage] = useState('');
   const [customJump, setCustomJump] = useState('');
   const [selectedJumpDirection, setSelectedJumpDirection] = useState<'forward' | 'backward' | null>(null);
-  const [expanded, setExpanded] = useState(false);
-  const [diceRolling, setDiceRolling] = useState(false);
-  const [randomMode, setRandomMode] = useState<'page' | 'key'>('page');
 
-  // Enhanced dice roll function with animation
-  const handleDiceRoll = async () => {
-    setDiceRolling(true);
-    
+  // Quick jump presets
+  const quickJumpPages = [5, 10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000, 1000000, 10000000];
+
+  const formatPageNumber = (pageValue: number | string): string => {
     try {
-      if (randomMode === 'page') {
-        // Animate dice roll for pages
-        const rollAnimation = diceRollAnimation(1, 6, 3);
-        for (let i = 0; i < rollAnimation.length; i++) {
-          await new Promise(resolve => setTimeout(resolve, 150));
-        }
-        
-        // Execute random page navigation
-        onRandomPage();
-      } else if (randomMode === 'key' && onRandomKeyInPage) {
-        // Random key within current page
-        const randomKeyIndex = secureRandomKeyInPage(keysPerPage);
-        
-        // Animate dice roll for keys
-        const rollAnimation = diceRollAnimation(0, keysPerPage - 1, 3);
-        for (let i = 0; i < rollAnimation.length; i++) {
-          await new Promise(resolve => setTimeout(resolve, 150));
-        }
-        
-        onRandomKeyInPage(randomKeyIndex);
-      }
-    } catch (error) {
-      console.error('Dice roll error:', error);
-    } finally {
-      setDiceRolling(false);
+      const decimal = new Decimal(pageValue.toString());
+      return decimal.toFixed(0);
+    } catch {
+      return '1';
     }
   };
-  
-  // Ensure t is defined with fallbacks
-  const translations = t || {
-    firstPage: 'First Page',
-    lastPage: 'Last Page',
-    previousPage: 'Previous Page',
-    nextPage: 'Next Page'
-  };
-  
-  const quickJumpPages = [10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000];
 
   const handleCustomPageSubmit = useCallback(() => {
     if (!customPage.trim()) return;
     
     try {
-      // Use Decimal.js for large number handling
       const pageDecimal = new Decimal(customPage.trim());
       const totalPagesDecimal = new Decimal(totalPages);
       
-      // Validate range
       if (pageDecimal.gte(1) && pageDecimal.lte(totalPagesDecimal)) {
         const pageString = pageDecimal.toFixed(0);
         onPageChange(pageString);
         setCustomPage('');
-      } else {
-        // Show validation error
-        console.warn(`Page number ${customPage} is out of range. Valid range: 1 to ${totalPages}`);
       }
     } catch (error) {
       console.error('Invalid page number format:', customPage, error);
@@ -160,7 +80,7 @@ const AdvancedNavigation = ({
   const handleCustomJump = useCallback(async (direction: 'forward' | 'backward') => {
     const jump = parseInt(customJump);
     if (jump > 0) {
-      const currentPageDecimal = parsePageNumberToDecimal(currentPage);
+      const currentPageDecimal = new Decimal(currentPage);
       const newPageDecimal = direction === 'forward' 
         ? currentPageDecimal.plus(jump) 
         : currentPageDecimal.minus(jump);
@@ -169,13 +89,11 @@ const AdvancedNavigation = ({
       if (newPageDecimal.gte(1) && newPageDecimal.lte(totalPagesDecimal)) {
         const newPageString = newPageDecimal.toFixed(0);
         
-        // Use direct API call if available, otherwise fall back to onPageChange
         if (onDirectPageChange) {
           try {
             await onDirectPageChange(newPageString);
           } catch (error) {
             console.error('Direct page change failed:', error);
-            // Fallback to regular page change
             onPageChange(newPageString);
           }
         } else {
@@ -183,35 +101,21 @@ const AdvancedNavigation = ({
         }
       }
     }
-    // Don't clear the input - keep the last value
   }, [customJump, currentPage, totalPages, onPageChange, onDirectPageChange]);
 
-  const handleJumpDirectionSelect = useCallback((direction: 'forward' | 'backward') => {
-    setSelectedJumpDirection(direction);
-  }, []);
-
-  const handleJumpEnterKey = useCallback(async () => {
-    if (selectedJumpDirection && customJump) {
-      await handleCustomJump(selectedJumpDirection);
-    }
-  }, [selectedJumpDirection, customJump, handleCustomJump]);
-
   const handleQuickJump = useCallback(async (jump: number) => {
-    const currentPageDecimal = parsePageNumberToDecimal(currentPage);
+    const currentPageDecimal = new Decimal(currentPage);
     const newPageDecimal = currentPageDecimal.plus(jump);
     const totalPagesDecimal = new Decimal(totalPages);
     
-    // Use Decimal comparison to avoid precision issues with large numbers
     if (newPageDecimal.gte(1) && newPageDecimal.lte(totalPagesDecimal)) {
       const newPageString = newPageDecimal.toFixed(0);
       
-      // Use direct API call if available, otherwise fall back to onPageChange
       if (onDirectPageChange) {
         try {
           await onDirectPageChange(newPageString);
         } catch (error) {
           console.error('Direct page change failed:', error);
-          // Fallback to regular page change
           onPageChange(newPageString);
         }
       } else {
@@ -221,21 +125,18 @@ const AdvancedNavigation = ({
   }, [currentPage, totalPages, onPageChange, onDirectPageChange]);
 
   const handleQuickJumpBack = useCallback(async (jump: number) => {
-    const currentPageDecimal = parsePageNumberToDecimal(currentPage);
+    const currentPageDecimal = new Decimal(currentPage);
     const newPageDecimal = currentPageDecimal.minus(jump);
     const totalPagesDecimal = new Decimal(totalPages);
     
-    // Use Decimal comparison to avoid precision issues with large numbers
     if (newPageDecimal.gte(1) && newPageDecimal.lte(totalPagesDecimal)) {
       const newPageString = newPageDecimal.toFixed(0);
       
-      // Use direct API call if available, otherwise fall back to onPageChange
       if (onDirectPageChange) {
         try {
           await onDirectPageChange(newPageString);
         } catch (error) {
           console.error('Direct page change failed:', error);
-          // Fallback to regular page change
           onPageChange(newPageString);
         }
       } else {
@@ -245,149 +146,41 @@ const AdvancedNavigation = ({
   }, [currentPage, totalPages, onPageChange, onDirectPageChange]);
 
   return (
-    <Accordion expanded={expanded} onChange={() => setExpanded(e => !e)} sx={{ mb: 2 }}>
+    <Accordion sx={{ mb: 2 }}>
       <AccordionSummary expandIcon={<ExpandMore />}>
-        <Typography variant="h6">Advanced Navigation</Typography>
-      </AccordionSummary>
-      <AccordionDetails>
-        {/* Reorganized Navigation - Page Display First */}
-        
-        {/* Current Page Display - Always stays in same place */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-          <Chip 
-            label={`Page ${formatPageNumber(currentPage)} of ${totalPages}`} 
-            color="primary" 
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="h6">
+            🎯 Advanced Navigation
+          </Typography>
+          <Chip
+            label={`${keysPerPage} keys/page`}
+            size="small"
             variant="outlined"
-            sx={{ fontSize: '0.9rem', px: 2, py: 0.5 }}
+            sx={{ fontSize: '0.75rem' }}
           />
         </Box>
-
-        {/* Navigation Buttons Row - Stable positioning */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 2, gap: 1 }}>
-          <Tooltip title={translations.firstPage} arrow>
-            <span>
-              <IconButton
-                onClick={() => onPageChange('1')}
-                disabled={currentPage === 1}
-                size="small"
-                color="primary"
-              >
-                <ChevronLeft />
-              </IconButton>
-            </span>
-          </Tooltip>
-          
-          <Tooltip title={translations.previousPage} arrow>
-            <span>
-              <IconButton
-                onClick={() => {
-                  const currentPageDecimal = parsePageNumberToDecimal(currentPage);
-                  const newPage = currentPageDecimal.minus(1);
-                  onPageChange(newPage.toFixed(0));
-                }}
-                disabled={parsePageNumberToDecimal(currentPage).lte(1)}
-                size="small"
-                color="primary"
-              >
-                <ChevronLeft />
-              </IconButton>
-            </span>
-          </Tooltip>
-          
-          <Typography variant="body2" color="text.secondary" sx={{ mx: 2 }}>
-            Navigate
-          </Typography>
-          
-          <Tooltip title={translations.nextPage} arrow>
-            <span>
-              <IconButton
-                onClick={() => {
-                  const currentPageDecimal = parsePageNumberToDecimal(currentPage);
-                  const newPage = currentPageDecimal.plus(1);
-                  onPageChange(newPage.toFixed(0));
-                }}
-                disabled={parsePageNumberToDecimal(currentPage).gte(totalPages)}
-                size="small"
-                color="primary"
-              >
-                <ChevronRight />
-              </IconButton>
-            </span>
-          </Tooltip>
-          
-          <Tooltip title={translations.lastPage} arrow>
-            <span>
-              <IconButton
-                onClick={() => onPageChange(getLastPageNumber())}
-                disabled={currentPage === totalPages}
-                size="small"
-                color="primary"
-              >
-                <ChevronRight />
-              </IconButton>
-            </span>
-          </Tooltip>
-        </Box>
-
-        {/* Random Controls Row - Always in same spot */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 3, gap: 1 }}>
-          <Select
-            size="small"
-            value={randomMode}
-            onChange={(e: any) => setRandomMode(e.target.value as 'page' | 'key')}
-            sx={{ minWidth: 80 }}
-          >
-            <MenuItem value="page">Page</MenuItem>
-            <MenuItem value="key">Key</MenuItem>
-          </Select>
-          <Tooltip title={`Random ${randomMode === 'page' ? 'Page' : 'Key in Current Page'}`} arrow>
-            <IconButton
-              onClick={handleDiceRoll}
-              color="secondary"
-              size="small"
-              disabled={diceRolling}
-              sx={{
-                animation: diceRolling ? 'spin 0.3s linear infinite' : 'none',
-                '@keyframes spin': {
-                  '0%': { transform: 'rotate(0deg)' },
-                  '100%': { transform: 'rotate(360deg)' },
-                },
-              }}
-            >
-              <Casino />
-            </IconButton>
-          </Tooltip>
-          <Typography variant="caption" color="text.secondary">
-            🎲 Random {randomMode}
-          </Typography>
-        </Box>
-
-        <Divider sx={{ mb: 2 }} />
-
+      </AccordionSummary>
+      <AccordionDetails>
         {/* Custom Page Input */}
         <Grid container spacing={2} sx={{ mb: 2 }}>
           <Grid item xs={12}>
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <TextField
                 size="small"
-                label="Go to Page"
-                placeholder="Enter page number (e.g., 1234567890123456789)"
+                label="Jump to Page"
+                placeholder="Enter page number"
                 value={customPage}
                 onChange={(e) => setCustomPage(e.target.value)}
                 type="text"
-                multiline={false}
                 sx={{ 
                   flexGrow: 1,
-                  minWidth: '400px', // Much wider to support huge numbers
+                  minWidth: '400px',
                   maxWidth: '800px',
                   '& .MuiInputBase-input': {
                     fontSize: '14px',
                     padding: '10px 14px',
-                    fontFamily: 'monospace', // Better for numbers
+                    fontFamily: 'monospace',
                     letterSpacing: '0.5px'
-                  },
-                  '& .MuiInputLabel-root': {
-                    fontSize: '14px'
                   }
                 }}
                 helperText={customPage ? 
@@ -405,10 +198,7 @@ const AdvancedNavigation = ({
                 onClick={handleCustomPageSubmit}
                 disabled={!customPage.trim()}
                 size="small"
-                sx={{ 
-                  minWidth: '80px',
-                  height: '40px'
-                }}
+                sx={{ minWidth: '80px', height: '40px' }}
               >
                 Go
               </Button>
@@ -416,7 +206,7 @@ const AdvancedNavigation = ({
           </Grid>
           
           <Grid item xs={12}>
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <TextField
                 size="small"
                 label="Jump Pages"
@@ -425,13 +215,12 @@ const AdvancedNavigation = ({
                 onChange={(e) => setCustomJump(e.target.value)}
                 type="number"
                 sx={{ 
-                  flexGrow: 1, 
                   minWidth: '150px',
                   maxWidth: '200px'
                 }}
                 onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    handleJumpEnterKey();
+                  if (e.key === 'Enter' && selectedJumpDirection) {
+                    handleCustomJump(selectedJumpDirection);
                   }
                 }}
                 helperText={selectedJumpDirection && customJump ? 
@@ -442,20 +231,26 @@ const AdvancedNavigation = ({
               <Button
                 variant={selectedJumpDirection === 'backward' ? 'contained' : 'outlined'}
                 color={selectedJumpDirection === 'backward' ? 'primary' : 'inherit'}
-                onClick={() => handleJumpDirectionSelect('backward')}
+                onClick={() => {
+                  setSelectedJumpDirection('backward');
+                  if (customJump) handleCustomJump('backward');
+                }}
                 disabled={!customJump || parseInt(customJump) <= 0}
                 size="small"
-                sx={{ minWidth: '120px' }}
+                sx={{ minWidth: '120px', height: '40px' }}
               >
                 Jump Backwards
               </Button>
               <Button
                 variant={selectedJumpDirection === 'forward' ? 'contained' : 'outlined'}
                 color={selectedJumpDirection === 'forward' ? 'primary' : 'inherit'}
-                onClick={() => handleJumpDirectionSelect('forward')}
+                onClick={() => {
+                  setSelectedJumpDirection('forward');
+                  if (customJump) handleCustomJump('forward');
+                }}
                 disabled={!customJump || parseInt(customJump) <= 0}
                 size="small"
-                sx={{ minWidth: '120px' }}
+                sx={{ minWidth: '120px', height: '40px' }}
               >
                 Jump Forward
               </Button>
@@ -463,42 +258,48 @@ const AdvancedNavigation = ({
           </Grid>
         </Grid>
 
-        {/* Random Key Selector */}
-        <Card sx={{ p: 2, mb: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <CasinoIcon color="primary" />
-            Random Key Selector
+        {/* Quick Jump Buttons */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" gutterBottom>
+            Quick Page Jumps:
           </Typography>
-          <Select
-            size="small"
-            value={randomMode}
-            onChange={(e: any) => setRandomMode(e.target.value as 'page' | 'key')}
-            sx={{ minWidth: 80 }}
-          >
-            <MenuItem value="page">Page</MenuItem>
-            <MenuItem value="key">Key</MenuItem>
-          </Select>
-          <Tooltip title={`Random ${randomMode === 'page' ? 'Page' : 'Key in Current Page'}`} arrow>
-            <IconButton
-              onClick={handleDiceRoll}
-              color="secondary"
-              size="small"
-              disabled={diceRolling}
-              sx={{
-                animation: diceRolling ? 'spin 0.3s linear infinite' : 'none',
-                '@keyframes spin': {
-                  '0%': { transform: 'rotate(0deg)' },
-                  '100%': { transform: 'rotate(360deg)' },
-                },
-              }}
-            >
-              <Casino />
-            </IconButton>
-          </Tooltip>
-          <Typography variant="caption" color="text.secondary">
-            🎲 Random {randomMode}
-          </Typography>
-        </Card>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ width: '100%', mb: 1 }}>
+              Jump Forward:
+            </Typography>
+            {quickJumpPages.map((jump) => (
+              <Tooltip key={`forward-${jump}`} title={`Jump forward ${jump.toLocaleString()} pages`} arrow>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => handleQuickJump(jump)}
+                  sx={{ minWidth: 'auto', px: 1, fontSize: '0.7rem' }}
+                >
+                  +{jump >= 1000000 ? `${Math.floor(jump / 1000000)}M` : jump >= 1000 ? `${Math.floor(jump / 1000)}K` : jump}
+                </Button>
+              </Tooltip>
+            ))}
+          </Box>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ width: '100%', mb: 1 }}>
+              Jump Backward:
+            </Typography>
+            {quickJumpPages.map((jump) => (
+              <Tooltip key={`backward-${jump}`} title={`Jump backward ${jump.toLocaleString()} pages`} arrow>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => handleQuickJumpBack(jump)}
+                  sx={{ minWidth: 'auto', px: 1, fontSize: '0.7rem' }}
+                >
+                  -{jump >= 1000000 ? `${Math.floor(jump / 1000000)}M` : jump >= 1000 ? `${Math.floor(jump / 1000)}K` : jump}
+                </Button>
+              </Tooltip>
+            ))}
+          </Box>
+        </Box>
+
+        <Divider sx={{ mb: 2 }} />
 
         {/* Keys Per Page Control */}
         <Box>

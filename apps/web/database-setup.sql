@@ -21,12 +21,17 @@ CREATE TABLE IF NOT EXISTS wallets_btc (
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Insert sample test data
+-- Insert sample test data (for development only - these are not real funded addresses)
+-- Note: These are test addresses for development. The balances are not real.
+-- Comment out or remove these for production use with real balance checking.
 INSERT INTO wallets_btc (address, balance) VALUES
-('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa', 0), -- Genesis block
-('3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy', 1500000000), -- 15 BTC
-('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4', 250000000) -- 2.5 BTC
+('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa', 0), -- Genesis block (kept as historical reference)
+('bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh', 1500000000), -- TEST: 15 BTC (fake address for demo)
+('1PVKVy52dSyqULe5tPpbwA3tYWGYEhhQGw', 250000000) -- TEST: 2.5 BTC (fake address for demo)
 ON CONFLICT (address) DO NOTHING;
+
+-- Remove the real addresses that should not have fake balances:
+-- DELETE FROM wallets_btc WHERE address IN ('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4', '3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy');
 
 -- Scan Session Tracking (optional persistence)
 CREATE TABLE IF NOT EXISTS scan_sessions (
