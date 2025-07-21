@@ -75,34 +75,38 @@ export class KeyGenerationService {
     // Convert hex private key to Buffer
     const privateKeyBuffer = Buffer.from(privateKey, 'hex');
     
-    // Generate key pair
-    const keyPair = ECPair.fromPrivateKey(privateKeyBuffer);
+    // Generate compressed key pair (default)
+    const keyPairCompressed = ECPair.fromPrivateKey(privateKeyBuffer, { compressed: true });
     
-    // Convert public key to Buffer for bitcoinjs-lib compatibility
-    const publicKeyBuffer = Buffer.from(keyPair.publicKey);
+    // Generate uncompressed key pair
+    const keyPairUncompressed = ECPair.fromPrivateKey(privateKeyBuffer, { compressed: false });
+    
+    // Get compressed and uncompressed public key buffers
+    const publicKeyCompressed = Buffer.from(keyPairCompressed.publicKey);
+    const publicKeyUncompressed = Buffer.from(keyPairUncompressed.publicKey);
     
     // Generate P2PKH addresses (compressed and uncompressed)
     const p2pkh_compressed = bitcoin.payments.p2pkh({ 
-      pubkey: publicKeyBuffer 
+      pubkey: publicKeyCompressed 
     }).address!;
     
     const p2pkh_uncompressed = bitcoin.payments.p2pkh({ 
-      pubkey: publicKeyBuffer
+      pubkey: publicKeyUncompressed
     }).address!;
     
-    // Generate P2WPKH address
+    // Generate P2WPKH address (always uses compressed public key)
     const p2wpkh = bitcoin.payments.p2wpkh({ 
-      pubkey: publicKeyBuffer 
+      pubkey: publicKeyCompressed 
     }).address!;
     
-    // Generate P2SH-P2WPKH address
+    // Generate P2SH-P2WPKH address (always uses compressed public key)
     const p2sh_p2wpkh = bitcoin.payments.p2sh({
-      redeem: bitcoin.payments.p2wpkh({ pubkey: publicKeyBuffer })
+      redeem: bitcoin.payments.p2wpkh({ pubkey: publicKeyCompressed })
     }).address!;
     
-    // Generate P2TR address (Taproot)
+    // Generate P2TR address (Taproot - always uses compressed, x-only)
     const p2tr = bitcoin.payments.p2tr({
-      internalPubkey: publicKeyBuffer.slice(1, 33)
+      internalPubkey: publicKeyCompressed.slice(1, 33)
     }).address!;
     
     return {
