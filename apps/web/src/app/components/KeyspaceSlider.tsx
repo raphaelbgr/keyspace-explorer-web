@@ -199,10 +199,17 @@ export default function KeyspaceSlider({
     }
   })();
 
-  // Calculate percentage for display
+  // Calculate percentage for display (use log scale for meaningful representation)
   const percentage = (() => {
     try {
-      return currentPageDecimal.minus(1).dividedBy(totalPagesDecimal.minus(1)).times(100).toNumber();
+      // For such massive numbers, use logarithmic percentage to show meaningful progress
+      if (currentPageDecimal.lte(1)) return 0;
+      
+      const logCurrent = Decimal.ln(currentPageDecimal);
+      const logTotal = Decimal.ln(totalPagesDecimal);
+      const logPercentage = logCurrent.dividedBy(logTotal).times(100);
+      
+      return logPercentage.toNumber();
     } catch {
       return 0;
     }
