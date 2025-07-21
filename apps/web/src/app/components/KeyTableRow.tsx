@@ -19,6 +19,15 @@ import {
 } from '@mui/icons-material';
 import { useCopyToClipboard } from '../utils/clipboard';
 
+// Utility function to truncate key numbers for table display
+const truncateKeyNumber = (keyNumber: bigint): string => {
+  const keyStr = keyNumber.toString();
+  if (keyStr.length > 5) {
+    return keyStr.substring(0, 5) + '[...]';
+  }
+  return keyStr;
+};
+
 interface KeyTableRowProps {
   keyData: {
     privateKey: string;
@@ -82,7 +91,7 @@ const KeyTableRow = memo<KeyTableRowProps>(({
   return (
     <>
       <TableRow>
-        <TableCell>{keyNumber.toString()}</TableCell>
+        <TableCell>{truncateKeyNumber(keyNumber)}</TableCell>
         <TableCell>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <KeyIcon sx={{ fontSize: '1rem', color: '#FFD700' }} />

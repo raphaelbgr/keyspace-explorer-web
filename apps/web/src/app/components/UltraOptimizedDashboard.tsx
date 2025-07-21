@@ -28,6 +28,14 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { useCopyToClipboard } from '../utils/clipboard';
 
+// Utility function to truncate key numbers for table display
+const truncateKeyNumber = (keyNumber: string): string => {
+  if (keyNumber.length > 5) {
+    return keyNumber.substring(0, 5) + '[...]';
+  }
+  return keyNumber;
+};
+
 interface UltraOptimizedDashboardProps {
   pageData: any;
   displayedKeys: any[];
@@ -140,7 +148,7 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                           {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                         </IconButton>
                       </TableCell>
-                      <TableCell>{keyNumber}</TableCell>
+                      <TableCell>{truncateKeyNumber(keyNumber)}</TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <KeyIcon sx={{ fontSize: '1rem', color: '#FFD700' }} />
