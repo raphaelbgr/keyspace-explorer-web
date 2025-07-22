@@ -49,6 +49,8 @@ import UltraOptimizedDashboard from './components/UltraOptimizedDashboard';
 import BalanceStatus from './components/BalanceStatus';
 import { useScannerStore } from './store/scannerStore';
 import { clientKeyGenerationService } from '../lib/services/ClientKeyGenerationService';
+import PortfolioAnalytics from './components/PortfolioAnalytics';
+import { CryptoCurrency } from '../lib/types/multi-currency';
 
 interface PageData {
   pageNumber: string;
@@ -62,19 +64,23 @@ interface PageData {
       p2wpkh: string;
       p2sh_p2wpkh: string;
       p2tr: string;
-    };
+    } | any; // Support multi-currency format
     balances: {
       p2pkh_compressed: number;
       p2pkh_uncompressed: number;
       p2wpkh: number;
       p2sh_p2wpkh: number;
       p2tr: number;
-    };
+    } | any; // Support multi-currency format
     totalBalance: number;
+    fundedCurrencies?: CryptoCurrency[];
+    hasAnyFunds?: boolean;
   }>;
   totalPageBalance: number;
   generatedAt: string;
   balancesFetched: boolean;
+  multiCurrency?: boolean;
+  currencies?: string[];
 }
 
 export default function Dashboard() {
@@ -935,6 +941,45 @@ export default function Dashboard() {
     setDisplayMode(prev => prev === 'grid' ? 'table' : 'grid');
   }, []), 100);
 
+  // Detect if current page data is multi-currency format
+  const isMultiCurrency = useMemo(() => {
+    if (!pageData || !pageData.keys || pageData.keys.length === 0) return false;
+    
+    // Check if any key has the multi-currency address structure
+    const firstKey = pageData.keys[0];
+    if (!firstKey.addresses) return false;
+    
+    // Multi-currency format has nested objects like { BTC: { p2pkh_compressed: "..." }, ETH: { standard: "..." } }
+    // Legacy format has direct properties like { p2pkh_compressed: "..." }
+    const addressesObj = firstKey.addresses as any;
+    const isMultiCurrencyFormat = typeof addressesObj === 'object' && 
+      !addressesObj.p2pkh_compressed && // Legacy format has direct properties
+      Object.keys(addressesObj).some(key => 
+        typeof addressesObj[key] === 'object' && addressesObj[key] !== null
+      );
+    
+    return isMultiCurrencyFormat || pageData.multiCurrency === true;
+  }, [pageData]);
+
+  // Extract currencies from multi-currency data
+  const activeCurrencies = useMemo(() => {
+    if (!isMultiCurrency || !pageData?.keys) return ['BTC'];
+    
+    const currencies = new Set<string>();
+    pageData.keys.forEach((key) => {
+      if (key.addresses && typeof key.addresses === 'object') {
+        const addressesObj = key.addresses as any;
+        Object.keys(addressesObj).forEach(currency => {
+          if (typeof addressesObj[currency] === 'object' && addressesObj[currency] !== null) {
+            currencies.add(currency);
+          }
+        });
+      }
+    });
+    
+    return Array.from(currencies).length > 0 ? Array.from(currencies) : ['BTC'];
+  }, [isMultiCurrency, pageData]);
+
   return (
     <Box 
       sx={{ 
@@ -963,10 +1008,10 @@ export default function Dashboard() {
                 fontSize: { xs: '2rem', md: '3rem' }
               }}
             >
-              {t.title}
+              {isMultiCurrency ? 'Multi-Currency Keyspace Explorer' : t.title}
             </Typography>
             <Typography variant="h6" color="text.secondary" sx={{ mb: 3 }}>
-              {t.subtitle}
+              {isMultiCurrency ? `Exploring ${activeCurrencies.length} cryptocurrencies simultaneously` : t.subtitle}
             </Typography>
           </Box>
         </Fade>
@@ -986,6 +1031,15 @@ export default function Dashboard() {
           generateLocally={generateLocally}
           onToggleLocalGeneration={setGenerateLocally}
         />
+
+        {/* Portfolio Analytics - Show for multi-currency data */}
+        {isMultiCurrency && pageData && (
+          <PortfolioAnalytics
+            keys={pageData.keys}
+            currencies={activeCurrencies as any}
+            compact={false}
+          />
+        )}
 
         {/* Keyspace Slider */}
         <KeyspaceSlider

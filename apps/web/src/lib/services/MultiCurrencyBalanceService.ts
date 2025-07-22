@@ -205,7 +205,7 @@ export class MultiCurrencyBalanceService {
     const result = await this.databaseService.executeQuery(query, params);
     
     return result.rows.map((row: any) => ({
-      address: row.address,
+      address: this.denormalizeAddress(row.address, currency), // Apply consistent formatting
       currency,
       balance: row.balance || '0',
       source: row.source as BalanceSource
@@ -269,14 +269,15 @@ export class MultiCurrencyBalanceService {
         }
       }
       
+      // Transform to results with consistent address formatting
       return result.rows.map((row: any) => ({
-        address: row.address,
+        address: this.denormalizeAddress(row.address, currency), // Apply consistent formatting
         currency,
-        balance: row.balance.toString(),
+        balance: row.balance || '0',
         source: 'local' as BalanceSource
       }));
     } catch (error) {
-      console.error(`Error querying local ${currency} balances:`, error);
+      console.error(`Error querying local ${currency} wallets:`, error);
       return [];
     }
   }
@@ -528,7 +529,7 @@ export class MultiCurrencyBalanceService {
         console.log(`⚠️ Failed to parse ${currency} API response as JSON:`, parseError);
         // Return zero balances if we can't parse the response
         return addresses.map(address => ({
-          address,
+          address: this.denormalizeAddress(address, currency), // Apply consistent formatting
           currency,
           balance: '0',
           source: 'blockstream' as const,
@@ -543,10 +544,10 @@ export class MultiCurrencyBalanceService {
             for (const [address, info] of Object.entries(parsedData.data)) {
               const addressInfo = info as any;
               results.push({
-                                 address,
-                 currency,
-                 balance: String(addressInfo.balance || 0),
-                 source: 'blockstream'
+                address: this.denormalizeAddress(address, currency), // Apply consistent formatting
+                currency,
+                balance: String(addressInfo.balance || 0),
+                source: 'blockstream'
               });
             }
           }
@@ -558,7 +559,7 @@ export class MultiCurrencyBalanceService {
           if (parsedData.data && Array.isArray(parsedData.data)) {
             parsedData.data.forEach((item: any) => {
               results.push({
-                address: item.address,
+                address: this.denormalizeAddress(item.address, currency), // Apply consistent formatting
                 currency,
                 balance: String(item.confirmed_balance || 0),
                 source: 'blockstream'
@@ -571,19 +572,19 @@ export class MultiCurrencyBalanceService {
           // Etherscan format (assuming single address for now)
           if (parsedData.result && addresses.length === 1) {
             results.push({
-                           address: addresses[0],
-             currency,
-             balance: String(parsedData.result || 0),
-             source: 'blockstream'
+              address: this.denormalizeAddress(addresses[0], currency), // Apply consistent formatting
+              currency,
+              balance: String(parsedData.result || 0),
+              source: 'blockstream'
             });
           }
           break;
 
         default:
-          // For other currencies, return zero balances for now
+          // For other currencies, return zero balances with consistent formatting
           addresses.forEach(address => {
             results.push({
-              address,
+              address: this.denormalizeAddress(address, currency), // Apply consistent formatting
               currency,
               balance: '0',
               source: 'blockstream'
@@ -593,10 +594,10 @@ export class MultiCurrencyBalanceService {
     } catch (error) {
       console.error(`Error parsing API response for ${currency}:`, error);
       
-      // Return zero balances on parse error
+      // Return zero balances on parse error with consistent formatting
       addresses.forEach(address => {
         results.push({
-          address,
+          address: this.denormalizeAddress(address, currency), // Apply consistent formatting
           currency,
           balance: '0',
           source: 'blockstream',
@@ -707,6 +708,26 @@ export class MultiCurrencyBalanceService {
       case 'BCH':
         // Remove bitcoincash: prefix
         return address.startsWith('bitcoincash:') ? address.slice(12) : address;
+      default:
+        return address;
+    }
+  }
+
+  /**
+   * Address denormalization for consistent API responses
+   */
+  private denormalizeAddress(address: string, currency: CryptoCurrency): string {
+    switch (currency) {
+      case 'ETH':
+        // Add 0x prefix if not present
+        return address.startsWith('0x') ? address : `0x${address}`;
+      case 'BCH':
+        // Add bitcoincash: prefix for CashAddr format (if it looks like CashAddr)
+        if (address.startsWith('q') || address.startsWith('p')) {
+          return address.startsWith('bitcoincash:') ? address : `bitcoincash:${address}`;
+        }
+        // Return legacy format as-is
+        return address;
       default:
         return address;
     }
