@@ -3,6 +3,7 @@ import { MultiCurrencyBalanceService } from '../../../lib/services/MultiCurrency
 import { CryptoCurrency, SUPPORTED_CURRENCIES } from '../../../lib/types/multi-currency';
 import { handleApiError } from '../../../lib/middleware/errorHandler';
 import { withRateLimit } from '../../../lib/middleware/rateLimit';
+import { AddressFormatDetector } from '../../../lib/utils/addressFormatDetector';
 
 // Initialize services
 const balanceService = new MultiCurrencyBalanceService();
@@ -28,55 +29,84 @@ async function handlePOST(request: NextRequest) {
       );
     }
 
-    // Default to BTC if no currencies specified
-    const currenciesToCheck: CryptoCurrency[] = currencies && Array.isArray(currencies) 
-      ? currencies.filter((c: string) => SUPPORTED_CURRENCIES.includes(c as CryptoCurrency))
-      : ['BTC'];
-
-    console.log(`🔍 Balance check request: ${addresses.length} addresses for currencies: ${currenciesToCheck.join(', ')}`);
+        // Use address format detection to optimize balance checking
+    console.log(`🔍 Balance check request: ${addresses.length} addresses`);
     console.log(`🔍 Sample addresses:`, addresses.slice(0, 5));
 
-    // Process each currency in parallel
-    const balancePromises = currenciesToCheck.map(async (currency) => {
-      console.log(`🌐 Processing ${currency} with ${addresses.length} addresses`);
-      const response = await balanceService.checkBalances({
-        currency,
-        addresses,
-        forceRefresh,
-        forceLocal
-      });
+    // Detect address formats and optimize currency queries
+    const optimization = AddressFormatDetector.getOptimizedCurrencyList(addresses);
+    const { currencyToAddresses, detectionResults, optimizationStats } = optimization;
 
-      return {
-        currencyType: currency,
-        ...response
+    console.log(`🚀 Address format optimization:`, optimizationStats);
+    
+    // Override optimization if currencies are explicitly specified (legacy support)
+    let finalCurrencyToAddresses = currencyToAddresses;
+    
+    if (currencies && Array.isArray(currencies) && currencies.length > 0) {
+      const requestedCurrencies = currencies.filter((c: string) => SUPPORTED_CURRENCIES.includes(c as CryptoCurrency)) as CryptoCurrency[];
+      console.log(`📌 Legacy mode: currencies explicitly specified: ${requestedCurrencies.join(', ')}`);
+      
+      // If currencies are explicitly specified, use legacy behavior but still optimize per currency
+      finalCurrencyToAddresses = {
+        BTC: [],
+        BCH: [],
+        DASH: [],
+        DOGE: [],
+        ETH: [],
+        LTC: [],
+        XRP: [],
+        ZEC: []
       };
-    });
+      requestedCurrencies.forEach(currency => {
+        finalCurrencyToAddresses[currency] = addresses; // Check all addresses against specified currencies
+      });
+      console.log(`⚠️  Using legacy mode - optimization bypassed`);
+    }
+
+    // Process each currency with its relevant addresses
+    const balancePromises = Object.entries(finalCurrencyToAddresses)
+      .filter(([_, addressList]) => addressList.length > 0)
+      .map(async ([currency, addressList]) => {
+        console.log(`🌐 Processing ${currency} with ${addressList.length} relevant addresses`);
+        const response = await balanceService.checkBalances({
+          currency: currency as CryptoCurrency,
+          addresses: addressList,
+          forceRefresh,
+          forceLocal
+        });
+
+        return {
+          currencyType: currency as CryptoCurrency,
+          addressList,
+          ...response
+        };
+      });
 
     const balanceResponses = await Promise.all(balancePromises);
 
-    // Aggregate results
+    // Aggregate results with optimized structure
     const aggregatedResults: Record<string, Record<CryptoCurrency, { balance: string; source: string }>> = {};
     let totalCacheHits = 0;
     let totalCacheMisses = 0;
     let totalExternalAPICalls = 0;
 
-         // Process results by currency
-     balanceResponses.forEach(response => {
-       totalCacheHits += response.cacheHits;
-       totalCacheMisses += response.cacheMisses;
-       totalExternalAPICalls += response.externalAPICalls;
+    // Process results by currency
+    balanceResponses.forEach(response => {
+      totalCacheHits += response.cacheHits;
+      totalCacheMisses += response.cacheMisses;
+      totalExternalAPICalls += response.externalAPICalls;
 
-       response.results.forEach(result => {
-         if (!aggregatedResults[result.address]) {
-           aggregatedResults[result.address] = {} as Record<CryptoCurrency, { balance: string; source: string }>;
-         }
-         
-         aggregatedResults[result.address][response.currencyType] = {
-           balance: result.balance,
-           source: result.source
-         };
-       });
-     });
+      response.results.forEach(result => {
+        if (!aggregatedResults[result.address]) {
+          aggregatedResults[result.address] = {} as Record<CryptoCurrency, { balance: string; source: string }>;
+        }
+        
+        aggregatedResults[result.address][response.currencyType] = {
+          balance: result.balance,
+          source: result.source
+        };
+      });
+    });
 
     // Calculate performance metrics
     const totalRequests = totalCacheHits + totalCacheMisses;
@@ -85,12 +115,20 @@ async function handlePOST(request: NextRequest) {
 
     console.log(`✅ Balance check completed: ${Object.keys(aggregatedResults).length} addresses, ${cacheHitRate.toFixed(1)}% cache hit rate`);
 
+    // Get list of currencies that were actually checked
+    const currenciesChecked = Object.keys(finalCurrencyToAddresses).filter(
+      currency => finalCurrencyToAddresses[currency as CryptoCurrency].length > 0
+    ) as CryptoCurrency[];
+
     return NextResponse.json({
       success: true,
       balances: aggregatedResults,
       metadata: {
-      totalAddresses: addresses.length,
-        currenciesChecked: currenciesToCheck,
+        totalAddresses: addresses.length,
+        currenciesChecked,
+        optimizationStats: currencies && Array.isArray(currencies) && currencies.length > 0 
+          ? undefined  // Don't show optimization stats in legacy mode
+          : optimizationStats,
         cacheHits: totalCacheHits,
         cacheMisses: totalCacheMisses,
         externalAPICalls: totalExternalAPICalls,

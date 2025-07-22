@@ -164,7 +164,7 @@ const AdvancedNavigation = ({
         {/* Custom Page Input */}
         <Grid container spacing={2} sx={{ mb: 2 }}>
           <Grid item xs={12}>
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'stretch', flexWrap: 'wrap' }}>
               <TextField
                 size="small"
                 label="Jump to Page"
@@ -176,9 +176,11 @@ const AdvancedNavigation = ({
                   flexGrow: 1,
                   minWidth: '400px',
                   maxWidth: '800px',
+                  '& .MuiInputBase-root': {
+                    height: '40px',
+                  },
                   '& .MuiInputBase-input': {
                     fontSize: '14px',
-                    padding: '10px 14px',
                     fontFamily: 'monospace',
                     letterSpacing: '0.5px'
                   }
@@ -198,7 +200,11 @@ const AdvancedNavigation = ({
                 onClick={handleCustomPageSubmit}
                 disabled={!customPage.trim()}
                 size="small"
-                sx={{ minWidth: '80px', height: '40px' }}
+                sx={{ 
+                  minWidth: '80px', 
+                  height: '40px',
+                  alignSelf: 'flex-start'
+                }}
               >
                 Go
               </Button>
@@ -206,7 +212,7 @@ const AdvancedNavigation = ({
           </Grid>
           
           <Grid item xs={12}>
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'stretch', flexWrap: 'wrap' }}>
               <TextField
                 size="small"
                 label="Jump Pages"
@@ -216,7 +222,10 @@ const AdvancedNavigation = ({
                 type="number"
                 sx={{ 
                   minWidth: '150px',
-                  maxWidth: '200px'
+                  maxWidth: '200px',
+                  '& .MuiInputBase-root': {
+                    height: '40px',
+                  }
                 }}
                 onKeyPress={(e) => {
                   if (e.key === 'Enter' && selectedJumpDirection) {
@@ -237,7 +246,11 @@ const AdvancedNavigation = ({
                 }}
                 disabled={!customJump || parseInt(customJump) <= 0}
                 size="small"
-                sx={{ minWidth: '120px', height: '40px' }}
+                sx={{ 
+                  minWidth: '120px', 
+                  height: '40px',
+                  alignSelf: 'flex-start'
+                }}
               >
                 Jump Backwards
               </Button>
@@ -250,7 +263,11 @@ const AdvancedNavigation = ({
                 }}
                 disabled={!customJump || parseInt(customJump) <= 0}
                 size="small"
-                sx={{ minWidth: '120px', height: '40px' }}
+                sx={{ 
+                  minWidth: '120px', 
+                  height: '40px',
+                  alignSelf: 'flex-start'
+                }}
               >
                 Jump Forward
               </Button>

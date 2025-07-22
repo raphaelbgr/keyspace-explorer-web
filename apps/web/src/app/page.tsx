@@ -323,42 +323,38 @@ export default function Dashboard() {
             
             console.log('📊 Addresses by currency:', Object.keys(addressesByCurrency).map(c => `${c}: ${addressesByCurrency[c].length}`));
               
-            // Make separate API calls for each currency with its specific addresses
-            const balancePromises = Object.entries(addressesByCurrency).map(async ([currency, currencyAddresses]) => {
-              console.log(`🔍 Checking ${currency} balances for ${currencyAddresses.length} addresses`);
-              const response = await fetch('/api/balances', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  addresses: currencyAddresses,
-                  currencies: [currency],
-                  forceLocal: apiSource === 'local'  // Use dynamic API source setting
-                }),
-              });
-              return { currency, response };
+            // Extract all unique addresses for optimized balance checking
+            const allUniqueAddresses = Array.from(new Set(
+              Object.values(addressesByCurrency).flat()
+            ));
+            
+            console.log(`🚀 Making optimized balance API call for ${allUniqueAddresses.length} unique addresses`);
+            
+            // Make single optimized API call - address format detection will handle currency routing
+            const response = await fetch('/api/balances', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                addresses: allUniqueAddresses,
+                forceLocal: apiSource === 'local'  // Use dynamic API source setting
+              }),
             });
             
-            const balanceResponses = await Promise.all(balancePromises);
-            const allBalances: any = {};
+            let allBalances: any = {};
             
-            // Aggregate all balance data
-            for (const { currency, response } of balanceResponses) {
-              if (response.ok) {
-                const data = await response.json();
-                if (data.success && data.balances) {
-                  Object.entries(data.balances).forEach(([address, balanceData]: [string, any]) => {
-                    if (!allBalances[address]) {
-                      allBalances[address] = {};
-                    }
-                    allBalances[address][currency] = balanceData[currency];
-                  });
-                }
+            if (response.ok) {
+              const balanceData = await response.json();
+              if (balanceData.success && balanceData.balances) {
+                allBalances = balanceData.balances;
+                console.log(`✅ Optimized balance check successful - optimization saved ${balanceData.metadata?.optimizationStats?.savings || 'N/A'}`);
               }
+            } else {
+              console.error('❌ Balance API call failed:', response.status, response.statusText);
             }
             
             console.log('✅ Multi-currency balance check successful:', allBalances);
             
-            // Update page data with balances
+            // Update page data with optimized balances
             const updatedData = { ...data };
             updatedData.keys = updatedData.keys.map((key: any) => {
               const keyBalances: any = {};
@@ -367,9 +363,12 @@ export default function Dashboard() {
               Object.entries(key.addresses).forEach(([currency, addresses]: [string, any]) => {
                 keyBalances[currency] = {};
                 Object.entries(addresses).forEach(([addrType, address]: [string, any]) => {
+                  // Check if this address has balance data and the currency is present
                   if (allBalances[address] && allBalances[address][currency]) {
                     keyBalances[currency][addrType] = allBalances[address][currency];
                   } else {
+                    // Only set zero balance if the address format should support this currency
+                    // The optimized API will only return data for relevant currencies
                     keyBalances[currency][addrType] = { balance: "0", source: "local" };
                   }
                 });
@@ -469,33 +468,70 @@ export default function Dashboard() {
       let data;
       
       if (generateLocally) {
-        // Client-side generation
-        console.log('🚀 Using client-side direct generation');
+        // Client-side generation with multi-currency support
+        console.log('🚀 Using client-side direct generation (Multi-currency)');
         const pageBigInt = safeToBigInt(pageNumber);
-        data = await clientKeyGenerationService.generatePage(pageBigInt, navKeysPerPage);
+        
+        // Generate base Bitcoin keys first
+        const baseData = await clientKeyGenerationService.generatePage(pageBigInt, navKeysPerPage);
+        
+        // Import multi-currency service for client-side use
+        const { multiCurrencyKeyGenerationService } = await import('../lib/services/MultiCurrencyKeyGenerationService');
+        
+        // Generate multi-currency addresses for each key
+        const multiCurrencyKeys = await Promise.all(
+          baseData.keys.map(async (baseKey) => {
+            try {
+              const allAddresses = await multiCurrencyKeyGenerationService.generateMultiCurrencyAddresses(baseKey.privateKey);
+              
+              return {
+                privateKey: baseKey.privateKey,
+                pageNumber: baseKey.pageNumber.toString(),
+                index: baseKey.index,
+                addresses: allAddresses, // Multi-currency format
+                balances: {},
+                totalBalance: 0,
+              };
+            } catch (error) {
+              console.error('Error generating multi-currency addresses for key:', baseKey.index, error);
+              // Fallback to Bitcoin-only
+              return {
+                privateKey: baseKey.privateKey,
+                pageNumber: baseKey.pageNumber.toString(),
+                index: baseKey.index,
+                addresses: baseKey.addresses,
+                balances: baseKey.balances,
+                totalBalance: baseKey.totalBalance,
+              };
+            }
+          })
+        );
         
         // Convert to the same format as API response
         const serializedData = {
-          pageNumber: data.pageNumber.toString(),
-          keys: data.keys.map(key => ({
-            privateKey: key.privateKey,
-            pageNumber: key.pageNumber.toString(),
-            index: key.index,
-            addresses: key.addresses,
-            balances: key.balances,
-            totalBalance: key.totalBalance,
-          })),
-          totalPageBalance: data.totalPageBalance,
-          generatedAt: data.generatedAt.toISOString(),
-          balancesFetched: data.balancesFetched,
+          pageNumber: baseData.pageNumber.toString(),
+          keys: multiCurrencyKeys,
+          totalPageBalance: baseData.totalPageBalance,
+          generatedAt: baseData.generatedAt.toISOString(),
+          balancesFetched: baseData.balancesFetched,
+          multiCurrency: true,
+          currencies: ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC'],
+          metadata: {
+            supportedCurrencies: ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC'],
+            totalAddressCount: multiCurrencyKeys.length * 21, // 21 addresses per key for all currencies
+            generationTime: 0,
+            generatedLocally: true
+          }
         };
         data = serializedData;
       } else {
-        // Server-side generation (existing API call)
-        console.log('🌐 Using server-side direct generation');
+        // Server-side generation with multi-currency support
+        console.log('🌐 Using server-side direct generation (Multi-currency)');
         const requestBody = { 
           pageNumber: pageNumber,  // Send as string to preserve precision
-          keysPerPage: navKeysPerPage 
+          keysPerPage: navKeysPerPage,
+          multiCurrency: true,  // Legacy flag for backward compatibility
+          currencies: ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC']  // Explicitly request all currencies
         };
         
         const response = await fetch('/api/generate-page', {
@@ -563,13 +599,12 @@ export default function Dashboard() {
 
           // Only make API call if we have valid addresses
           if (addresses.length > 0) {
-            console.log('🌐 Making balance API call...');
+            console.log('🌐 Making optimized balance API call...');
             const balanceData = await fetch('/api/balances', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                addresses: addresses,
-                currencies: data.multiCurrency ? ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC'] : ['BTC']
+                addresses: addresses
               }),
             });
             
@@ -794,16 +829,15 @@ export default function Dashboard() {
             ]).filter(Boolean); // Remove undefined/null values
           }
 
-          // Only make API call if we have valid addresses
-          if (addresses.length > 0) {
-            const balanceData = await fetch('/api/balances', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                addresses: addresses,
-                currencies: data.multiCurrency ? ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC'] : ['BTC']
-              }),
-            });
+                      // Only make API call if we have valid addresses
+            if (addresses.length > 0) {
+              const balanceData = await fetch('/api/balances', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  addresses: addresses
+                }),
+              });
             
             if (balanceData.ok) {
               const balances = await balanceData.json();

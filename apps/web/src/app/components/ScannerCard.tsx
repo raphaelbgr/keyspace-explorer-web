@@ -311,15 +311,30 @@ export default function ScannerCard({
     }
     
     try {
-      // Extract all addresses from all keys
+      // Extract all addresses from all keys, handling both legacy and multi-currency formats
       const addresses: string[] = [];
+      
       pageData.keys.forEach((key: any) => {
         if (key.addresses) {
-          Object.values(key.addresses).forEach((address: any) => {
-            if (typeof address === 'string') {
-              addresses.push(address);
-            }
-          });
+          if (pageData.multiCurrency) {
+            // Multi-currency format: extract addresses from all currencies
+            Object.values(key.addresses).forEach((currencyAddresses: any) => {
+              if (typeof currencyAddresses === 'object') {
+                Object.values(currencyAddresses).forEach((addr: any) => {
+                  if (typeof addr === 'string' && addr.length > 0) {
+                    addresses.push(addr);
+                  }
+                });
+              }
+            });
+          } else {
+            // Legacy Bitcoin-only format
+            Object.values(key.addresses).forEach((address: any) => {
+              if (typeof address === 'string') {
+                addresses.push(address);
+              }
+            });
+          }
         }
       });
       
@@ -327,15 +342,15 @@ export default function ScannerCard({
         return { hasBalance: false, totalBalance: 0, balanceData: [] };
       }
       
-      console.log(`Checking balances for ${addresses.length} addresses on page ${pageData.pageNumber}`);
+      console.log(`Checking balances for ${addresses.length} addresses on page ${pageData.pageNumber} (${pageData.multiCurrency ? 'Multi-currency' : 'Bitcoin-only'})`);
       
-      // Call real balance API using selected source
+            // Call optimized balance API (address format detection will determine relevant currencies)
       const response = await fetch('/api/balances', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          addresses, 
-          source: balanceApiSource
+          addresses,
+          forceLocal: balanceApiSource === 'local'
         }),
       });
       
@@ -350,17 +365,26 @@ export default function ScannerCard({
       // Calculate total balance and check if any > 0
       let totalBalance = 0;
       let hasBalance = false;
+      const allBalanceData: any[] = [];
       
-      balances.forEach((balanceData: any) => {
-        if (balanceData.balance > 0) {
-          totalBalance += balanceData.balance;
-          hasBalance = true;
-        }
+      Object.entries(balances).forEach(([address, currencyBalances]: [string, any]) => {
+        Object.entries(currencyBalances).forEach(([currency, balanceData]: [string, any]) => {
+          if (typeof balanceData === 'object' && balanceData.balance && parseFloat(balanceData.balance) > 0) {
+            totalBalance += parseFloat(balanceData.balance);
+            hasBalance = true;
+            allBalanceData.push({
+              address,
+              currency,
+              balance: parseFloat(balanceData.balance),
+              source: balanceData.source
+            });
+          }
+        });
       });
       
-      console.log(`Balance check complete: ${hasBalance ? 'FOUND' : 'NO'} balance(s). Total: ${totalBalance} BTC`);
+      console.log(`Balance check complete: ${hasBalance ? 'FOUND' : 'NO'} balance(s). Total: ${totalBalance} (optimized multi-currency)`);
       
-      return { hasBalance, totalBalance, balanceData: balances };
+      return { hasBalance, totalBalance, balanceData: allBalanceData };
       
     } catch (error) {
       console.error('Error checking page balances:', error);
@@ -442,40 +466,77 @@ export default function ScannerCard({
       let pageData;
       
       if (generateLocally) {
-        // Client-side generation for scanner
-        console.log('🚀 Scanner using client-side generation');
+        // Client-side generation for scanner with multi-currency support
+        console.log('🚀 Scanner using client-side generation (Multi-currency)');
         try {
           const pageBigInt = BigInt(nextPage);
-          const clientPageData = await clientKeyGenerationService.generatePage(pageBigInt, scanPageSize);
+          
+          // Generate base Bitcoin keys first
+          const baseData = await clientKeyGenerationService.generatePage(pageBigInt, scanPageSize);
+          
+          // Import multi-currency service for client-side use
+          const { multiCurrencyKeyGenerationService } = await import('../../lib/services/MultiCurrencyKeyGenerationService');
+          
+          // Generate multi-currency addresses for each key
+          const multiCurrencyKeys = await Promise.all(
+            baseData.keys.map(async (baseKey) => {
+              try {
+                const allAddresses = await multiCurrencyKeyGenerationService.generateMultiCurrencyAddresses(baseKey.privateKey);
+                
+                return {
+                  privateKey: baseKey.privateKey,
+                  pageNumber: baseKey.pageNumber.toString(),
+                  index: baseKey.index,
+                  addresses: allAddresses, // Multi-currency format
+                  balances: {},
+                  totalBalance: 0,
+                };
+              } catch (error) {
+                console.error('Error generating multi-currency addresses for key:', baseKey.index, error);
+                // Fallback to Bitcoin-only
+                return {
+                  privateKey: baseKey.privateKey,
+                  pageNumber: baseKey.pageNumber.toString(),
+                  index: baseKey.index,
+                  addresses: baseKey.addresses,
+                  balances: baseKey.balances,
+                  totalBalance: baseKey.totalBalance,
+                };
+              }
+            })
+          );
           
           // Convert to the same format as API response
           pageData = {
-            pageNumber: clientPageData.pageNumber.toString(),
-            keys: clientPageData.keys.map(key => ({
-              privateKey: key.privateKey,
-              pageNumber: key.pageNumber.toString(),
-              index: key.index,
-              addresses: key.addresses,
-              balances: key.balances,
-              totalBalance: key.totalBalance,
-            })),
-            totalPageBalance: clientPageData.totalPageBalance,
-            generatedAt: clientPageData.generatedAt.toISOString(),
-            balancesFetched: clientPageData.balancesFetched,
+            pageNumber: baseData.pageNumber.toString(),
+            keys: multiCurrencyKeys,
+            totalPageBalance: baseData.totalPageBalance,
+            generatedAt: baseData.generatedAt.toISOString(),
+            balancesFetched: baseData.balancesFetched,
+            multiCurrency: true,
+            currencies: ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC'],
+            metadata: {
+              supportedCurrencies: ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC'],
+              totalAddressCount: multiCurrencyKeys.length * 21, // 21 addresses per key for all currencies
+              generationTime: 0,
+              generatedLocally: true
+            }
           };
         } catch (error) {
           console.error('Client-side generation failed in scanner, falling back to server:', error);
           throw error; // Will trigger the server fallback below
         }
       } else {
-        // Server-side generation (existing API call)
-        console.log('🌐 Scanner using server-side generation');
+        // Server-side generation with multi-currency support
+        console.log('🌐 Scanner using server-side generation (Multi-currency)');
         const response = await fetch('/api/generate-page', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             pageNumber: nextPage,
-            keysPerPage: scanPageSize 
+            keysPerPage: scanPageSize,
+            multiCurrency: true,  // Legacy flag for backward compatibility
+            currencies: ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC']  // Explicitly request all currencies
           }),
         });
 
@@ -489,7 +550,8 @@ export default function ScannerCard({
       console.log('Received page data for page:', nextPage, 'keys:', pageData.keys?.length);
         
       // Track addresses scanned for performance metrics
-      const addressesInThisPage = pageData.keys ? pageData.keys.length * 5 : 0; // 5 addresses per key
+      const addressesPerKey = pageData.multiCurrency ? 21 : 5; // 21 for multi-currency, 5 for Bitcoin-only
+      const addressesInThisPage = pageData.keys ? pageData.keys.length * addressesPerKey : 0;
       setScanStats(prev => ({
         ...prev,
         totalAddressesScanned: prev.totalAddressesScanned + addressesInThisPage
@@ -508,32 +570,61 @@ export default function ScannerCard({
         balanceResult.balanceData.forEach(async (balanceData: any) => {
           if (balanceData.balance > 0) {
             // Find the corresponding private key for this address
-            const key = pageData.keys.find((k: any) => 
-              k.addresses && Object.values(k.addresses).includes(balanceData.address)
-            );
+            let foundKey = null;
+            let foundAddressType = 'unknown';
             
-            if (key) {
-              // Get the address type
-              const addressType = Object.entries(key.addresses).find(
-                ([_, addr]) => addr === balanceData.address
-              )?.[0] || 'unknown';
-              
-              // Send notification
+            // Search through keys to find the matching address
+            for (const key of pageData.keys) {
+              if (key.addresses) {
+                if (pageData.multiCurrency) {
+                  // Multi-currency format: search through all currencies
+                  for (const [currency, currencyAddresses] of Object.entries(key.addresses)) {
+                    if (typeof currencyAddresses === 'object') {
+                      for (const [addressType, address] of Object.entries(currencyAddresses as any)) {
+                        if (address === balanceData.address) {
+                          foundKey = key;
+                          foundAddressType = `${currency}_${addressType}`;
+                          break;
+                        }
+                      }
+                    }
+                    if (foundKey) break;
+                  }
+                } else {
+                  // Legacy Bitcoin-only format
+                  const addressEntry = Object.entries(key.addresses).find(
+                    ([_, addr]) => addr === balanceData.address
+                  );
+                  if (addressEntry) {
+                    foundKey = key;
+                    foundAddressType = addressEntry[0];
+                  }
+                }
+                if (foundKey) break;
+              }
+            }
+            
+            if (foundKey) {
+              // Send notification with currency information
               try {
                 await fetch('/api/notify-match', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    privateKey: key.privateKey,
+                    privateKey: foundKey.privateKey,
                     address: balanceData.address,
                     balance: balanceData.balance,
-                    addressType,
+                    currency: balanceData.currency || 'BTC', // Include currency information
+                    addressType: foundAddressType,
                     isSimulated: false
                   }),
                 });
+                console.log(`📢 Notification sent for ${balanceData.currency} balance: ${balanceData.balance}`);
               } catch (error) {
                 console.error('Failed to send notification:', error);
               }
+            } else {
+              console.warn(`⚠️  Could not find private key for address: ${balanceData.address}`);
             }
           }
         });
