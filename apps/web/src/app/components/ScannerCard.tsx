@@ -45,6 +45,7 @@ import { useScannerStore } from '../store/scannerStore';
 import { useTranslation } from '../translations';
 import Decimal from 'decimal.js';
 import { clientKeyGenerationService } from '../../lib/services/ClientKeyGenerationService';
+import { unifiedBalanceService } from '../../lib/services/UnifiedBalanceService';
 
 interface ScannerCardProps {
   currentPage: string;
@@ -311,56 +312,19 @@ export default function ScannerCard({
     }
     
     try {
-      // Extract all addresses from all keys, handling both legacy and multi-currency formats
-      const addresses: string[] = [];
+      console.log(`Scanner: Checking balances for page ${pageData.pageNumber} (${pageData.multiCurrency ? 'Multi-currency' : 'Bitcoin-only'})`);
       
-      pageData.keys.forEach((key: any) => {
-        if (key.addresses) {
-          if (pageData.multiCurrency) {
-            // Multi-currency format: extract addresses from all currencies
-            Object.values(key.addresses).forEach((currencyAddresses: any) => {
-              if (typeof currencyAddresses === 'object') {
-                Object.values(currencyAddresses).forEach((addr: any) => {
-                  if (typeof addr === 'string' && addr.length > 0) {
-                    addresses.push(addr);
-                  }
-                });
-              }
-            });
-          } else {
-            // Legacy Bitcoin-only format
-            Object.values(key.addresses).forEach((address: any) => {
-              if (typeof address === 'string') {
-                addresses.push(address);
-              }
-            });
-          }
-        }
+      // Use UnifiedBalanceService for balance checking
+      const balanceResponse = await unifiedBalanceService.checkBalancesForPrivateKeys(pageData, {
+        forceLocal: balanceApiSource === 'local'
       });
       
-      if (addresses.length === 0) {
+      if (!balanceResponse.success || !balanceResponse.balances) {
+        console.warn('Scanner: Balance check failed or returned no data');
         return { hasBalance: false, totalBalance: 0, balanceData: [] };
       }
       
-      console.log(`Checking balances for ${addresses.length} addresses on page ${pageData.pageNumber} (${pageData.multiCurrency ? 'Multi-currency' : 'Bitcoin-only'})`);
-      
-            // Call optimized balance API (address format detection will determine relevant currencies)
-      const response = await fetch('/api/balances', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          addresses,
-          forceLocal: balanceApiSource === 'local'
-        }),
-      });
-      
-      if (!response.ok) {
-        console.error('Balance API call failed:', response.status, response.statusText);
-        return { hasBalance: false, totalBalance: 0, balanceData: [] };
-      }
-      
-      const balanceResponse = await response.json();
-      const balances = balanceResponse.balances || [];
+      const balances = balanceResponse.balances;
       
       // Calculate total balance and check if any > 0
       let totalBalance = 0;
@@ -382,12 +346,12 @@ export default function ScannerCard({
         });
       });
       
-      console.log(`Balance check complete: ${hasBalance ? 'FOUND' : 'NO'} balance(s). Total: ${totalBalance} (optimized multi-currency)`);
+      console.log(`Scanner: Balance check complete: ${hasBalance ? 'FOUND' : 'NO'} balance(s). Total: ${totalBalance} (unified service)`);
       
       return { hasBalance, totalBalance, balanceData: allBalanceData };
       
     } catch (error) {
-      console.error('Error checking page balances:', error);
+      console.error('Scanner: Error checking page balances:', error);
       return { hasBalance: false, totalBalance: 0, balanceData: [] };
     }
   }, [balanceApiSource]);

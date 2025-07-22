@@ -52,6 +52,7 @@ import { clientKeyGenerationService } from '../lib/services/ClientKeyGenerationS
 import CryptoPriceDashboard from './components/CryptoPriceDashboard';
 import { CryptoCurrency } from '../lib/types/multi-currency';
 import { USDCalculationService } from '../lib/services/USDCalculationService';
+import { unifiedBalanceService } from '../lib/services/UnifiedBalanceService';
 
 interface PageData {
   pageNumber: string;
@@ -298,160 +299,81 @@ export default function Dashboard() {
         console.log('🔍 Starting balance check for generated page');
         
         try {
-          if (data.multiCurrency) {
-            console.log('📊 Processing multi-currency format');
+          // Use UnifiedBalanceService for balance checking
+          const balanceResponse = await unifiedBalanceService.checkBalancesForPrivateKeys(data, {
+            forceLocal: apiSource === 'local'
+          });
+          
+          if (balanceResponse.success && balanceResponse.balances) {
+            const allBalances = balanceResponse.balances;
+            console.log(`✅ Unified balance check successful - ${Object.keys(allBalances).length} addresses checked`);
             
-            // Group addresses by currency
-            const addressesByCurrency: Record<string, string[]> = {};
-            
-            data.keys.forEach((key: any) => {
-              if (key.addresses) {
-                Object.entries(key.addresses).forEach(([currency, currencyAddresses]: [string, any]) => {
-                  if (!addressesByCurrency[currency]) {
-                    addressesByCurrency[currency] = [];
-                  }
-                  if (typeof currencyAddresses === 'object') {
-                    Object.values(currencyAddresses).forEach((addr: any) => {
-                      if (typeof addr === 'string' && addr.length > 0) {
-                        addressesByCurrency[currency].push(addr);
-                      }
-                    });
-                  }
-                });
-              }
-            });
-            
-            console.log('📊 Addresses by currency:', Object.keys(addressesByCurrency).map(c => `${c}: ${addressesByCurrency[c].length}`));
-              
-            // Extract all unique addresses for optimized balance checking
-            const allUniqueAddresses = Array.from(new Set(
-              Object.values(addressesByCurrency).flat()
-            ));
-            
-            console.log(`🚀 Making optimized balance API call for ${allUniqueAddresses.length} unique addresses`);
-            
-            // Make single optimized API call - address format detection will handle currency routing
-            const response = await fetch('/api/balances', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                addresses: allUniqueAddresses,
-                forceLocal: apiSource === 'local'  // Use dynamic API source setting
-              }),
-            });
-            
-            let allBalances: any = {};
-            
-            if (response.ok) {
-              const balanceData = await response.json();
-              if (balanceData.success && balanceData.balances) {
-                allBalances = balanceData.balances;
-                console.log(`✅ Optimized balance check successful - optimization saved ${balanceData.metadata?.optimizationStats?.savings || 'N/A'}`);
-              }
-            } else {
-              console.error('❌ Balance API call failed:', response.status, response.statusText);
-            }
-            
-            console.log('✅ Multi-currency balance check successful:', allBalances);
-            
-            // Update page data with optimized balances
+            // Update page data with balances - unified service handles both multi-currency and legacy formats
             const updatedData = { ...data };
-            updatedData.keys = updatedData.keys.map((key: any) => {
-              const keyBalances: any = {};
-              let hasAnyFunds = false;
-              const fundedCurrencies: string[] = [];
-              
-              // For each currency and address type, check if we have balance data
-              Object.entries(key.addresses).forEach(([currency, addresses]: [string, any]) => {
-                keyBalances[currency] = {};
-                let currencyHasFunds = false;
+            
+            if (data.multiCurrency) {
+              console.log('📊 Processing multi-currency format');
+              updatedData.keys = updatedData.keys.map((key: any) => {
+                const keyBalances: any = {};
+                let hasAnyFunds = false;
+                const fundedCurrencies: string[] = [];
                 
-                Object.entries(addresses).forEach(([addrType, address]: [string, any]) => {
-                  // Check if this address has balance data and the currency is present
-                  if (allBalances[address] && allBalances[address][currency]) {
-                    keyBalances[currency][addrType] = allBalances[address][currency];
-                    const balance = parseFloat(allBalances[address][currency].balance || '0');
-                    if (balance > 0) {
-                      hasAnyFunds = true;
-                      currencyHasFunds = true;
-                    }
-                  } else {
-                    // Only set zero balance if the address format should support this currency
-                    // The optimized API will only return data for relevant currencies
-                    keyBalances[currency][addrType] = { balance: "0", source: "local" };
-                  }
-                });
-                
-                if (currencyHasFunds) {
-                  fundedCurrencies.push(currency);
-                }
-              });
-              
-              return {
-                ...key,
-                balances: keyBalances,
-                hasAnyFunds,
-                fundedCurrencies,
-                totalBalance: 0 // Will be calculated by existing helper functions
-              };
-            });
-            
-            setPageData(updatedData);
-            
-          } else {
-            // Legacy single-currency mode
-            console.log('₿ Processing legacy Bitcoin-only format');
-            const addresses = data.keys.flatMap((key: any) => [
-              key.addresses?.p2pkh_compressed,
-              key.addresses?.p2pkh_uncompressed,
-              key.addresses?.p2wpkh,
-              key.addresses?.p2sh_p2wpkh,
-              key.addresses?.p2tr
-            ]).filter(Boolean);
-            
-            console.log(`🔗 Extracted ${addresses.length} Bitcoin addresses for balance check`);
-            
-            if (addresses.length > 0) {
-              const balanceResponse = await fetch('/api/balances', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  addresses: addresses,
-                  currencies: ['BTC']
-                }),
-              });
-            
-              if (balanceResponse.ok) {
-                const balanceData = await balanceResponse.json();
-                console.log('✅ Balance check successful:', balanceData);
-                
-                // Update page data with balances
-                const updatedData = { ...data };
-                
-                if (balanceData.success && balanceData.balances) {
-                  updatedData.keys = updatedData.keys.map((key: any) => {
-                    const keyBalances: any = {};
-                    
-                    // Legacy format
-                    keyBalances.BTC = {};
-                    Object.entries(key.addresses).forEach(([addrType, address]: [string, any]) => {
-                      if (balanceData.balances[address]) {
-                        keyBalances.BTC[addrType] = balanceData.balances[address].BTC || { balance: "0", source: "local" };
+                // For each currency and address type, check if we have balance data
+                Object.entries(key.addresses).forEach(([currency, addresses]: [string, any]) => {
+                  keyBalances[currency] = {};
+                  let currencyHasFunds = false;
+                  
+                  Object.entries(addresses).forEach(([addrType, address]: [string, any]) => {
+                    // Check if this address has balance data and the currency is present
+                    if (allBalances[address] && allBalances[address][currency]) {
+                      keyBalances[currency][addrType] = allBalances[address][currency];
+                      const balance = parseFloat(allBalances[address][currency].balance || '0');
+                      if (balance > 0) {
+                        hasAnyFunds = true;
+                        currencyHasFunds = true;
                       }
-                    });
-                    
-                    return {
-                      ...key,
-                      balances: keyBalances
-                    };
+                    } else {
+                      // Only set zero balance if the address format should support this currency
+                      keyBalances[currency][addrType] = { balance: "0", source: "local" };
+                    }
                   });
                   
-                  setPageData(updatedData);
-                }
-              } else {
-                console.error('Balance API returned error:', balanceResponse.status);
-              }
+                  if (currencyHasFunds) {
+                    fundedCurrencies.push(currency);
+                  }
+                });
+                
+                return {
+                  ...key,
+                  balances: keyBalances,
+                  hasAnyFunds,
+                  fundedCurrencies,
+                  totalBalance: 0 // Will be calculated by existing helper functions
+                };
+              });
+            } else {
+              console.log('₿ Processing legacy Bitcoin-only format');
+              updatedData.keys = updatedData.keys.map((key: any) => {
+                const keyBalances: any = { BTC: {} };
+                
+                Object.entries(key.addresses).forEach(([addrType, address]: [string, any]) => {
+                  if (allBalances[address] && allBalances[address].BTC) {
+                    keyBalances.BTC[addrType] = allBalances[address].BTC;
+                  } else {
+                    keyBalances.BTC[addrType] = { balance: "0", source: "local" };
+                  }
+                });
+                
+                return {
+                  ...key,
+                  balances: keyBalances
+                };
+              });
             }
+            
+            setPageData(updatedData);
+          } else {
+            console.warn('⚠️ Balance check failed or returned no data');
           }
         } catch (balanceError) {
           console.error('Error checking balances:', balanceError);
@@ -577,124 +499,80 @@ export default function Dashboard() {
         });
         
         try {
-          // Handle both legacy and multi-currency formats
-          let addresses: string[] = [];
+          // Use UnifiedBalanceService for balance checking
+          const balanceResponse = await unifiedBalanceService.checkBalancesForPrivateKeys(data);
           
-          if (data.multiCurrency) {
-            console.log('📊 Processing multi-currency format');
-            // Multi-currency format: extract all addresses from all currencies
-            addresses = data.keys.flatMap((key: any) => {
-              const allAddresses: string[] = [];
-              if (key.addresses) {
-                // Extract addresses from all supported currencies
-                Object.values(key.addresses).forEach((currencyAddresses: any) => {
-                  if (typeof currencyAddresses === 'object') {
-                    Object.values(currencyAddresses).forEach((addr: any) => {
-                      if (typeof addr === 'string' && addr.length > 0) {
-                        allAddresses.push(addr);
-                      }
-                    });
-                  }
-                });
-              }
-              return allAddresses;
-            });
-          } else {
-            console.log('₿ Processing legacy Bitcoin-only format');
-            // Legacy Bitcoin-only format
-            addresses = data.keys.flatMap((key: any) => [
-              key.addresses?.p2pkh_compressed,
-              key.addresses?.p2pkh_uncompressed,
-              key.addresses?.p2wpkh,
-              key.addresses?.p2sh_p2wpkh,
-              key.addresses?.p2tr
-            ]).filter(Boolean); // Remove undefined/null values
-          }
-
-          console.log(`🔗 Extracted ${addresses.length} addresses for balance check`);
-
-          // Only make API call if we have valid addresses
-          if (addresses.length > 0) {
-            console.log('🌐 Making optimized balance API call...');
-            const balanceData = await fetch('/api/balances', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                addresses: addresses
-              }),
-            });
+          if (balanceResponse.success && balanceResponse.balances) {
+            const allBalances = balanceResponse.balances;
+            console.log('✅ Unified balance check successful (handleDirectPageChange)');
             
-            if (balanceData.ok) {
-              const balances = await balanceData.json();
-              console.log('✅ Balance check successful:', balances);
-              // Update page data with balances
-              const updatedData = { ...data };
-              
-              if (data.multiCurrency) {
-                // Handle multi-currency balance updates - FIXED!
-                updatedData.keys = data.keys.map((key: any) => {
-                  const keyBalances: any = {};
-                  let hasAnyFunds = false;
-                  const fundedCurrencies: string[] = [];
+            // Update page data with balances - unified service handles both multi-currency and legacy formats
+            const updatedData = { ...data };
+            
+            if (data.multiCurrency) {
+              console.log('📊 Processing multi-currency format');
+              updatedData.keys = updatedData.keys.map((key: any) => {
+                const keyBalances: any = {};
+                let hasAnyFunds = false;
+                const fundedCurrencies: string[] = [];
+                
+                // For each currency and address type, check if we have balance data
+                Object.entries(key.addresses).forEach(([currency, addresses]: [string, any]) => {
+                  keyBalances[currency] = {};
+                  let currencyHasFunds = false;
                   
-                  // For each currency and address type, map the balance data correctly
-                  Object.entries(key.addresses).forEach(([currency, addresses]: [string, any]) => {
-                    keyBalances[currency] = {};
-                    let currencyHasFunds = false;
-                    
-                    Object.entries(addresses).forEach(([addrType, address]: [string, any]) => {
-                      // Check if this address has balance data from the API
-                      if (balances.balances && balances.balances[address] && balances.balances[address][currency]) {
-                        keyBalances[currency][addrType] = balances.balances[address][currency];
-                        const balance = parseFloat(balances.balances[address][currency].balance || '0');
-                        if (balance > 0) {
-                          hasAnyFunds = true;
-                          currencyHasFunds = true;
-                        }
-                      } else {
-                        keyBalances[currency][addrType] = { balance: "0", source: "local" };
+                  Object.entries(addresses).forEach(([addrType, address]: [string, any]) => {
+                    // Check if this address has balance data and the currency is present
+                    if (allBalances[address] && allBalances[address][currency]) {
+                      keyBalances[currency][addrType] = allBalances[address][currency];
+                      const balance = parseFloat(allBalances[address][currency].balance || '0');
+                      if (balance > 0) {
+                        hasAnyFunds = true;
+                        currencyHasFunds = true;
                       }
-                    });
-                    
-                    if (currencyHasFunds) {
-                      fundedCurrencies.push(currency);
+                    } else {
+                      // Only set zero balance if the address format should support this currency
+                      keyBalances[currency][addrType] = { balance: "0", source: "local" };
                     }
                   });
                   
-                  return {
-                    ...key,
-                    balances: keyBalances,
-                    hasAnyFunds,
-                    fundedCurrencies,
-                    totalBalance: 0 // Will be calculated by existing helper functions
-                  };
+                  if (currencyHasFunds) {
+                    fundedCurrencies.push(currency);
+                  }
                 });
-              } else {
-                // Legacy Bitcoin-only balance updates
-                updatedData.keys = data.keys.map((key: any) => {
-                  const keyBalances = {
-                    p2pkh_compressed: balances[key.addresses?.p2pkh_compressed] || 0,
-                    p2pkh_uncompressed: balances[key.addresses?.p2pkh_uncompressed] || 0,
-                    p2wpkh: balances[key.addresses?.p2wpkh] || 0,
-                    p2sh_p2wpkh: balances[key.addresses?.p2sh_p2wpkh] || 0,
-                    p2tr: balances[key.addresses?.p2tr] || 0,
-                  };
-                  const total = Object.values(keyBalances).reduce((sum: number, balance: number) => sum + balance, 0);
-                  return {
-                    ...key,
-                    balances: keyBalances,
-                    totalBalance: total
-                  };
-                });
-              }
-              updatedData.totalPageBalance = updatedData.keys.reduce((sum: number, key: any) => sum + key.totalBalance, 0);
-              setPageData(updatedData);
-              console.log('💰 Balance data updated in page state');
+                
+                return {
+                  ...key,
+                  balances: keyBalances,
+                  hasAnyFunds,
+                  fundedCurrencies,
+                  totalBalance: 0 // Will be calculated by existing helper functions
+                };
+              });
             } else {
-              console.error('❌ Balance API call failed:', balanceData.status, balanceData.statusText);
+              console.log('₿ Processing legacy Bitcoin-only format');
+              updatedData.keys = updatedData.keys.map((key: any) => {
+                const keyBalances: any = { BTC: {} };
+                
+                Object.entries(key.addresses).forEach(([addrType, address]: [string, any]) => {
+                  if (allBalances[address] && allBalances[address].BTC) {
+                    keyBalances.BTC[addrType] = allBalances[address].BTC;
+                  } else {
+                    keyBalances.BTC[addrType] = { balance: "0", source: "local" };
+                  }
+                });
+                
+                return {
+                  ...key,
+                  balances: keyBalances
+                };
+              });
             }
+            
+            setPageData(updatedData);
+            console.log('💰 Balance data updated in page state');
           } else {
-            console.warn('⚠️ No valid addresses found for balance check');
+            console.warn('⚠️ Balance check failed or returned no data');
           }
         } catch (balanceError) {
           console.error('💥 Balance check error:', balanceError);
@@ -844,113 +722,78 @@ export default function Dashboard() {
         });
         
         try {
-          // Handle both legacy and multi-currency formats
-          let addresses: string[] = [];
+          // Use UnifiedBalanceService for balance checking
+          const balanceResponse = await unifiedBalanceService.checkBalancesForPrivateKeys(data);
           
-          if (data.multiCurrency) {
-            // Multi-currency format: extract all addresses from all currencies
-            addresses = data.keys.flatMap((key: any) => {
-              const allAddresses: string[] = [];
-              if (key.addresses) {
-                // Extract addresses from all supported currencies
-                Object.values(key.addresses).forEach((currencyAddresses: any) => {
-                  if (typeof currencyAddresses === 'object') {
-                    Object.values(currencyAddresses).forEach((addr: any) => {
-                      if (typeof addr === 'string' && addr.length > 0) {
-                        allAddresses.push(addr);
-                      }
-                    });
-                  }
-                });
-              }
-              return allAddresses;
-            });
-          } else {
-            // Legacy Bitcoin-only format
-            addresses = data.keys.flatMap((key: any) => [
-              key.addresses?.p2pkh_compressed,
-              key.addresses?.p2pkh_uncompressed,
-              key.addresses?.p2wpkh,
-              key.addresses?.p2sh_p2wpkh,
-              key.addresses?.p2tr
-            ]).filter(Boolean); // Remove undefined/null values
-          }
-
-                      // Only make API call if we have valid addresses
-            if (addresses.length > 0) {
-              const balanceData = await fetch('/api/balances', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  addresses: addresses
-                }),
-              });
+          if (balanceResponse.success && balanceResponse.balances) {
+            const allBalances = balanceResponse.balances;
+            console.log('✅ Unified balance check successful (handleRandomPage)');
             
-            if (balanceData.ok) {
-              const balances = await balanceData.json();
-              // Update page data with balances
-              const updatedData = { ...data };
-              
-              if (data.multiCurrency) {
-                // Handle multi-currency balance updates - FIXED!
-                updatedData.keys = data.keys.map((key: any) => {
-                  const keyBalances: any = {};
-                  let hasAnyFunds = false;
-                  const fundedCurrencies: string[] = [];
+            // Update page data with balances - unified service handles both multi-currency and legacy formats
+            const updatedData = { ...data };
+            
+            if (data.multiCurrency) {
+              console.log('📊 Processing multi-currency format');
+              updatedData.keys = updatedData.keys.map((key: any) => {
+                const keyBalances: any = {};
+                let hasAnyFunds = false;
+                const fundedCurrencies: string[] = [];
+                
+                // For each currency and address type, check if we have balance data
+                Object.entries(key.addresses).forEach(([currency, addresses]: [string, any]) => {
+                  keyBalances[currency] = {};
+                  let currencyHasFunds = false;
                   
-                  // For each currency and address type, map the balance data correctly
-                  Object.entries(key.addresses).forEach(([currency, addresses]: [string, any]) => {
-                    keyBalances[currency] = {};
-                    let currencyHasFunds = false;
-                    
-                    Object.entries(addresses).forEach(([addrType, address]: [string, any]) => {
-                      // Check if this address has balance data from the API
-                      if (balances.balances && balances.balances[address] && balances.balances[address][currency]) {
-                        keyBalances[currency][addrType] = balances.balances[address][currency];
-                        const balance = parseFloat(balances.balances[address][currency].balance || '0');
-                        if (balance > 0) {
-                          hasAnyFunds = true;
-                          currencyHasFunds = true;
-                        }
-                      } else {
-                        keyBalances[currency][addrType] = { balance: "0", source: "local" };
+                  Object.entries(addresses).forEach(([addrType, address]: [string, any]) => {
+                    // Check if this address has balance data and the currency is present
+                    if (allBalances[address] && allBalances[address][currency]) {
+                      keyBalances[currency][addrType] = allBalances[address][currency];
+                      const balance = parseFloat(allBalances[address][currency].balance || '0');
+                      if (balance > 0) {
+                        hasAnyFunds = true;
+                        currencyHasFunds = true;
                       }
-                    });
-                    
-                    if (currencyHasFunds) {
-                      fundedCurrencies.push(currency);
+                    } else {
+                      keyBalances[currency][addrType] = { balance: "0", source: "local" };
                     }
                   });
                   
-                  return {
-                    ...key,
-                    balances: keyBalances,
-                    hasAnyFunds,
-                    fundedCurrencies,
-                    totalBalance: 0 // Will be calculated by existing helper functions
-                  };
+                  if (currencyHasFunds) {
+                    fundedCurrencies.push(currency);
+                  }
                 });
-              } else {
-                // Legacy Bitcoin-only balance updates
-                updatedData.keys = data.keys.map((key: any) => {
-                  const keyBalances = {
-                    p2pkh_compressed: balances[key.addresses?.p2pkh_compressed] || 0,
-                    p2pkh_uncompressed: balances[key.addresses?.p2pkh_uncompressed] || 0,
-                    p2wpkh: balances[key.addresses?.p2wpkh] || 0,
-                    p2sh_p2wpkh: balances[key.addresses?.p2sh_p2wpkh] || 0,
-                    p2tr: balances[key.addresses?.p2tr] || 0,
-                  };
-                  const total = Object.values(keyBalances).reduce((sum: number, balance: number) => sum + balance, 0);
-                  return {
-                    ...key,
-                    balances: keyBalances,
-                    totalBalance: total
-                  };
+                
+                return {
+                  ...key,
+                  balances: keyBalances,
+                  hasAnyFunds,
+                  fundedCurrencies,
+                  totalBalance: 0 // Will be calculated by existing helper functions
+                };
+              });
+            } else {
+              console.log('₿ Processing legacy Bitcoin-only format');
+              updatedData.keys = updatedData.keys.map((key: any) => {
+                const keyBalances: any = { BTC: {} };
+                
+                Object.entries(key.addresses).forEach(([addrType, address]: [string, any]) => {
+                  if (allBalances[address] && allBalances[address].BTC) {
+                    keyBalances.BTC[addrType] = allBalances[address].BTC;
+                  } else {
+                    keyBalances.BTC[addrType] = { balance: "0", source: "local" };
+                  }
                 });
-              }
-              updatedData.totalPageBalance = updatedData.keys.reduce((sum: number, key: any) => sum + key.totalBalance, 0);
-              setPageData(updatedData);
+                
+                return {
+                  ...key,
+                  balances: keyBalances
+                };
+              });
             }
+            
+            setPageData(updatedData);
+          } else {
+            console.warn('⚠️ Balance check failed or returned no data');
           }
         } catch (balanceError) {
           console.warn('Failed to fetch balances:', balanceError);

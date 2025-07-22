@@ -755,6 +755,50 @@ export class MultiCurrencyBalanceService {
   }
 
   /**
+   * Extract addresses from private key format for private key-aware processing
+   */
+  extractAddressesFromPrivateKeys(privateKeys: Record<string, any>): { 
+    addresses: string[], 
+    privateKeyCount: number,
+    privateKeyToAddresses: Record<string, string[]>
+  } {
+    const allAddresses: string[] = [];
+    const privateKeyToAddresses: Record<string, string[]> = {};
+    const privateKeyCount = Object.keys(privateKeys).length;
+
+    console.log(`🔐 Extracting addresses from ${privateKeyCount} private keys`);
+
+    Object.entries(privateKeys).forEach(([privateKey, currencyMap]: [string, any]) => {
+      const addressesForKey: string[] = [];
+      
+      if (typeof currencyMap === 'object') {
+        Object.entries(currencyMap).forEach(([currency, addressMap]: [string, any]) => {
+          if (typeof addressMap === 'object') {
+            Object.values(addressMap).forEach((address: any) => {
+              if (typeof address === 'string' && address.length > 0) {
+                allAddresses.push(address);
+                addressesForKey.push(address);
+              }
+            });
+          }
+        });
+      }
+      
+      // Map private key to its addresses (without logging the actual private key)
+      privateKeyToAddresses[`key_${Object.keys(privateKeyToAddresses).length + 1}`] = addressesForKey;
+    });
+
+    console.log(`🔐 Extracted ${allAddresses.length} total addresses from private keys`);
+    console.log(`🔐 Private key distribution:`, Object.values(privateKeyToAddresses).map(addrs => addrs.length));
+
+    return {
+      addresses: allAddresses,
+      privateKeyCount,
+      privateKeyToAddresses
+    };
+  }
+
+  /**
    * Utility methods
    */
   private chunkArray<T>(array: T[], size: number): T[][] {

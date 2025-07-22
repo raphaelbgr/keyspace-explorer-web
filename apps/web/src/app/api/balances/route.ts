@@ -12,29 +12,68 @@ async function handlePOST(request: NextRequest) {
   try {
 
     const body = await request.json();
-    const { addresses, currencies, forceRefresh = false, forceLocal = true } = body;
+    const { addresses, private_keys, currencies, forceRefresh = false, forceLocal = true } = body;
 
-    // Validate input
-    if (!addresses || !Array.isArray(addresses) || addresses.length === 0) {
+    let finalAddresses: string[] = [];
+    let privateKeyCount = 0;
+
+    // Handle new private key format
+    if (private_keys && typeof private_keys === 'object') {
+      console.log(`🔐 Processing private key format request`);
+      
+      const privateKeyAddresses: string[] = [];
+      privateKeyCount = Object.keys(private_keys).length;
+      
+      // Extract addresses from private key structure
+      Object.entries(private_keys).forEach(([privateKey, currencyMap]: [string, any]) => {
+        if (typeof currencyMap === 'object') {
+          Object.entries(currencyMap).forEach(([currency, addressMap]: [string, any]) => {
+            if (typeof addressMap === 'object') {
+              Object.values(addressMap).forEach((address: any) => {
+                if (typeof address === 'string' && address.length > 0) {
+                  privateKeyAddresses.push(address);
+                }
+              });
+            }
+          });
+        }
+      });
+
+      finalAddresses = privateKeyAddresses;
+      console.log(`🔐 Extracted ${finalAddresses.length} addresses from ${privateKeyCount} private keys`);
+      
+    } else if (addresses && Array.isArray(addresses)) {
+      // Handle legacy address array format
+      console.log(`📋 Processing legacy address array format`);
+      finalAddresses = addresses;
+    } else {
       return NextResponse.json(
-        { error: 'Addresses array is required and must not be empty' },
+        { error: 'Either addresses array or private_keys object is required' },
         { status: 400 }
       );
     }
 
-    if (addresses.length > 100000) {
+    // Validate final addresses
+    if (finalAddresses.length === 0) {
       return NextResponse.json(
-        { error: 'Maximum 100,000 addresses allowed per request' },
+        { error: 'No valid addresses found in request' },
+        { status: 400 }
+      );
+    }
+
+    if (finalAddresses.length > 100000000) {
+      return NextResponse.json(
+        { error: 'Maximum 100,000,000 addresses allowed per request' },
         { status: 400 }
       );
     }
 
         // Use address format detection to optimize balance checking
-    console.log(`🔍 Balance check request: ${addresses.length} addresses`);
-    console.log(`🔍 Sample addresses:`, addresses.slice(0, 5));
+    console.log(`🔍 Balance check request: ${finalAddresses.length} addresses`);
+    console.log(`🔍 Sample addresses:`, finalAddresses.slice(0, 5));
 
     // Detect address formats and optimize currency queries
-    const optimization = AddressFormatDetector.getOptimizedCurrencyList(addresses);
+    const optimization = AddressFormatDetector.getOptimizedCurrencyList(finalAddresses);
     const { currencyToAddresses, detectionResults, optimizationStats } = optimization;
 
     console.log(`🚀 Address format optimization:`, optimizationStats);
@@ -139,7 +178,7 @@ async function handlePOST(request: NextRequest) {
       success: true,
       balances: aggregatedResults,
       metadata: {
-        totalAddresses: addresses.length,
+        totalAddresses: finalAddresses.length,
         currenciesChecked,
         optimizationStats,
         cacheHits: totalCacheHits,
@@ -147,7 +186,8 @@ async function handlePOST(request: NextRequest) {
         externalAPICalls: totalExternalAPICalls,
         cacheHitRate: `${cacheHitRate.toFixed(1)}%`,
         apiCallReduction: `${apiCallReduction.toFixed(1)}%`,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        ...(privateKeyCount > 0 && { totalPrivateKeys: privateKeyCount })
       }
     });
 
