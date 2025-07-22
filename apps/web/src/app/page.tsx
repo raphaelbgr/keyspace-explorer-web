@@ -112,38 +112,7 @@ export default function Dashboard() {
   // Get USD calculation service
   const usdService = USDCalculationService.getInstance();
   
-  // Helper function to calculate page totals by currency
-  const calculatePageCurrencyTotals = useMemo(() => {
-    if (!pageData?.keys) return {};
-    
-    const totals: Record<CryptoCurrency, number> = {
-      BTC: 0, BCH: 0, DASH: 0, DOGE: 0, ETH: 0, LTC: 0, XRP: 0, ZEC: 0
-    };
-    
-    pageData.keys.forEach(key => {
-      if (key.balances && typeof key.balances === 'object') {
-        // Multi-currency format
-        Object.keys(totals).forEach(currency => {
-          const currencyBalances = key.balances[currency];
-          if (currencyBalances && typeof currencyBalances === 'object') {
-            const currencyTotal = Object.values(currencyBalances).reduce((sum: number, bal: any) => {
-              if (typeof bal === 'number') return sum + bal;
-              if (bal && typeof bal === 'object' && bal.balance !== undefined) {
-                return sum + parseFloat(bal.balance);
-              }
-              return sum;
-            }, 0);
-            totals[currency as CryptoCurrency] += currencyTotal;
-          }
-        });
-      } else {
-        // Legacy Bitcoin-only format
-        totals.BTC += key.totalBalance || 0;
-      }
-    });
-    
-    return totals;
-  }, [pageData]);
+
   
   const [apiSource, setApiSource] = useState<string>('local');
   const [expandedKeys, setExpandedKeys] = useState<Set<number>>(new Set());
@@ -691,38 +660,73 @@ export default function Dashboard() {
       let data;
 
       if (generateLocally) {
-        // Local generation
-        console.log('🖥️ Using local generation for random page');
-        const rawData = await clientKeyGenerationService.generatePage(
-          safeToBigInt(randomPageStr), 
-          navKeysPerPage
+        // Client-side generation with multi-currency support
+        console.log('🖥️ Using local generation for random page (Multi-currency)');
+        const pageBigInt = safeToBigInt(randomPageStr);
+        
+        // Generate base Bitcoin keys first
+        const baseData = await clientKeyGenerationService.generatePage(pageBigInt, navKeysPerPage);
+        
+        // Import multi-currency service for client-side use
+        const { multiCurrencyKeyGenerationService } = await import('../lib/services/MultiCurrencyKeyGenerationService');
+        
+        // Generate multi-currency addresses for each key
+        const multiCurrencyKeys = await Promise.all(
+          baseData.keys.map(async (baseKey) => {
+            try {
+              const allAddresses = await multiCurrencyKeyGenerationService.generateMultiCurrencyAddresses(baseKey.privateKey);
+              
+              return {
+                privateKey: baseKey.privateKey,
+                pageNumber: baseKey.pageNumber.toString(),
+                index: baseKey.index,
+                addresses: allAddresses, // Multi-currency format
+                balances: {},
+                totalBalance: 0,
+              };
+            } catch (error) {
+              console.error('Error generating multi-currency addresses for key:', baseKey.index, error);
+              // Fallback to Bitcoin-only
+              return {
+                privateKey: baseKey.privateKey,
+                pageNumber: baseKey.pageNumber.toString(),
+                index: baseKey.index,
+                addresses: baseKey.addresses,
+                balances: baseKey.balances,
+                totalBalance: baseKey.totalBalance,
+              };
+            }
+          })
         );
         
-        // Convert Date to string for consistency
+        // Convert to the same format as API response
         const serializedData = {
-          pageNumber: rawData.pageNumber.toString(),
-          keys: rawData.keys.map(key => ({
-            privateKey: key.privateKey,
-            pageNumber: key.pageNumber.toString(),
-            index: key.index,
-            addresses: key.addresses,
-            balances: key.balances,
-            totalBalance: key.totalBalance,
-          })),
-          totalPageBalance: rawData.totalPageBalance,
-          generatedAt: rawData.generatedAt.toISOString(),
-          balancesFetched: rawData.balancesFetched,
+          pageNumber: baseData.pageNumber.toString(),
+          keys: multiCurrencyKeys,
+          totalPageBalance: baseData.totalPageBalance,
+          generatedAt: baseData.generatedAt.toISOString(),
+          balancesFetched: baseData.balancesFetched,
+          multiCurrency: true,
+          currencies: ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC'],
+          metadata: {
+            supportedCurrencies: ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC'],
+            totalAddressCount: multiCurrencyKeys.length * 21, // 21 addresses per key for all currencies
+            generationTime: 0,
+            generatedLocally: true
+          }
         };
         data = serializedData;
       } else {
-        // Server generation
-        console.log('🌐 Using server generation for random page');
+        // Server generation with multi-currency support
+        console.log('🌐 Using server generation for random page (Multi-currency)');
         const response = await fetch('/api/generate-page', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             pageNumber: randomPageStr,
-            keysPerPage: navKeysPerPage 
+            keysPerPage: navKeysPerPage,
+            multiCurrency: true,  // Legacy flag for backward compatibility
+            currencies: ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC']  // Explicitly request all currencies
           }),
         });
 
@@ -1109,8 +1113,38 @@ export default function Dashboard() {
         {isMultiCurrency && (
           <CryptoPriceDashboard
             refreshInterval={30000}
+            defaultCollapsed={true}
           />
         )}
+
+        {/* Scanner Card */}
+        <ScannerCard
+          currentPage={currentPage}
+          totalPages={Number(navTotalPages)}
+          onPageChange={handlePageChange}
+          onDirectPageChange={handleDirectPageChange}
+          generateLocally={generateLocally}
+        />
+
+        {/* Random Key Card */}
+        {/* <RandomKeyCard
+          currentPage={currentPage}
+          onRandomPage={handleRandomPage}
+          onRandomKeyInPage={handleRandomKeyInPage}
+          keysPerPage={keysPerPage}
+          generateLocally={generateLocally}
+          disabled={loading}
+        /> */}
+
+        {/* Advanced Navigation */}
+        <AdvancedNavigation
+          currentPage={currentPage}
+          totalPages={Number(navTotalPages)}
+          onPageChange={handlePageChange}
+          onDirectPageChange={handleDirectPageChange}
+          keysPerPage={navKeysPerPage}
+          onKeysPerPageChange={handleKeysPerPageChange}
+        />
 
         {/* Keyspace Slider */}
         <KeyspaceSlider
@@ -1198,34 +1232,19 @@ export default function Dashboard() {
                     const maxBitcoinKeys = BigInt('115792089237316195423570985008687907852837564279074904382605163141518161494336'); // 2^256
                     const maxPages = maxBitcoinKeys / BigInt(navKeysPerPage);
                     
-                    // Generate truly random page between 1 and maxPages
-                    const randomBuffer = new Uint8Array(32);
-                    crypto.getRandomValues(randomBuffer);
-                    let randomBigInt = BigInt(0);
-                    for (let i = 0; i < 32; i++) {
-                      randomBigInt = (randomBigInt << BigInt(8)) + BigInt(randomBuffer[i]);
-                    }
-                    
-                    // Ensure we get a page between 1 and maxPages
-                    const randomPage = (randomBigInt % maxPages) + BigInt(1);
-                    
-                    console.log(`🎲 Generated random page: ${randomPage.toString()} out of max ${maxPages.toString()}`);
-                    handlePageChange(randomPage.toString());
-                  } catch (error) {
-                    console.error('Random page generation error:', error);
-                    // Fallback to simpler random within available range
-                    const maxPage = Number(navTotalPages);
-                    const randomPage = Math.floor(Math.random() * maxPage) + 1;
-                    handlePageChange(randomPage.toString());
+                                                              // Generate a secure random page number
+                     handleRandomPage();
+                     return; // handleRandomPage already calls handlePageChange
+                   } catch (error) {
+                     console.error('Random page generation error:', error);
+                     // Fallback to a simple random within reasonable bounds
+                     handleRandomPage();
                   }
                 }}
-                disabled={loading}
                 sx={{ 
                   border: '1px solid',
-                  borderColor: 'warning.main',
-                  backgroundColor: 'rgba(255, 193, 7, 0.1)',
-                  '&:hover': { backgroundColor: 'rgba(255, 193, 7, 0.2)' },
-                  '&:disabled': { borderColor: 'action.disabled' }
+                  borderColor: 'secondary.main',
+                  '&:hover': { borderColor: 'secondary.dark' }
                 }}
               >
                 <Typography sx={{ fontSize: '1rem' }}>🎲</Typography>
@@ -1241,43 +1260,44 @@ export default function Dashboard() {
                 size="small"
                 onClick={() => {
                   try {
-                    // Use BigInt arithmetic for reliable large number handling  
+                    // Use BigInt arithmetic for reliable large number handling
                     const currentPageBigInt = safeToBigInt(currentPage);
-                    const totalPagesBigInt = safeToBigInt(navTotalPages.toString());
-                    if (currentPageBigInt < totalPagesBigInt) {
-                      const nextPage = currentPageBigInt + BigInt(1);
-                      handlePageChange(nextPage.toString());
-                    }
+                    const nextPage = currentPageBigInt + BigInt(1);
+                    handlePageChange(nextPage.toString());
                   } catch (error) {
                     console.error('Next page calculation error:', error);
                     // Fallback to string-based parsing
                     const currentPageNum = parseFloat(currentPage);
-                    const totalPagesNum = Number(navTotalPages);
-                    if (currentPageNum < totalPagesNum) {
-                      handlePageChange((currentPageNum + 1).toString());
-                    }
+                    handlePageChange((currentPageNum + 1).toString());
                   }
                 }}
-                disabled={parseFloat(currentPage) >= Number(navTotalPages)}
                 sx={{ 
                   border: '1px solid',
-                  borderColor: 'primary.main',
-                  '&:disabled': { borderColor: 'action.disabled' }
+                  borderColor: 'primary.main'
                 }}
               >
                 <NavigateNextIcon fontSize="small" />
               </IconButton>
             </Tooltip>
             
-            <Tooltip title="Last Page" arrow>
+            <Tooltip title="Last Page (Max Bitcoin Keyspace)" arrow>
               <IconButton
                 size="small"
-                onClick={() => handlePageChange(navTotalPages.toString())}
-                disabled={parseFloat(currentPage) >= Number(navTotalPages)}
+                onClick={() => {
+                  try {
+                    // Calculate max possible pages in Bitcoin keyspace
+                    const maxBitcoinKeys = BigInt('115792089237316195423570985008687907852837564279074904382605163141518161494336'); // 2^256
+                    const maxPages = maxBitcoinKeys / BigInt(navKeysPerPage);
+                    handlePageChange(maxPages.toString());
+                  } catch (error) {
+                    console.error('Last page calculation error:', error);
+                    // Fallback to a large but safe number
+                    handlePageChange('999999999999999999999999999999999999999999999999999999999999999999999999999');
+                  }
+                }}
                 sx={{ 
                   border: '1px solid',
-                  borderColor: 'primary.main',
-                  '&:disabled': { borderColor: 'action.disabled' }
+                  borderColor: 'primary.main'
                 }}
               >
                 <LastPageIcon fontSize="small" />
@@ -1285,49 +1305,6 @@ export default function Dashboard() {
             </Tooltip>
           </Box>
         </Card>
-
-        {/* Advanced Navigation */}
-        <AdvancedNavigation
-          currentPage={currentPage}
-          totalPages={Number(navTotalPages)}
-          onPageChange={handlePageChange}
-          onDirectPageChange={handleDirectPageChange}
-          keysPerPage={navKeysPerPage}
-          onKeysPerPageChange={handleKeysPerPageChange}
-        />
-
-        {/* Random Key Card */}
-        <RandomKeyCard
-          currentPage={currentPage}
-          onRandomPage={handleRandomPage}
-          onRandomKeyInPage={handleRandomKeyInPage}
-          keysPerPage={keysPerPage}
-          generateLocally={generateLocally}
-          disabled={loading}
-        />
-
-        {/* Scanner Card */}
-        <ScannerCard
-          currentPage={currentPage}
-          totalPages={Number(navTotalPages)}
-          onPageChange={handlePageChange}
-          onDirectPageChange={handleDirectPageChange}
-          generateLocally={generateLocally}
-        />
-
-        {/* Balance Status - Now shows real scan data */}
-        {pageData && (
-          <BalanceStatus
-            totalBalance={pageData.totalPageBalance}
-            totalAddresses={pageData.keys.length * 5} // 5 addresses per key
-            checkedAddresses={pageData.keys.length * 5} // All addresses are checked when page is generated
-            lastChecked={pageData.generatedAt}
-            isChecking={loading}
-            source="Scanner"
-            onRefresh={() => handleGeneratePage()}
-            hasFunds={pageData.totalPageBalance > 0}
-          />
-        )}
 
         {/* Error Display */}
         {error && (
@@ -1343,74 +1320,7 @@ export default function Dashboard() {
             backdropFilter: 'blur(10px)' 
           }}>
               <CardContent>
-                <Box sx={{ mb: 3 }}>
-                  {/* Page number on its own line */}
-                  <Typography 
-                    variant="h5" 
-                    component="h2" 
-                    sx={{ 
-                      mb: 2, 
-                      wordBreak: 'break-all', 
-                      lineHeight: 1.2,
-                      fontFamily: 'monospace'
-                    }}
-                  >
-                    {formatTranslation(t.pageResults, { page: pageData.pageNumber })}
-                  </Typography>
-                  
-                  {/* Indicators always on the line below */}
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <Chip 
-                      label={`${pageData.keys.length} ${t.keys}`} 
-                      color="primary" 
-                    />
-                    
-                    {/* Currency totals with USD values */}
-                    {Object.entries(calculatePageCurrencyTotals).map(([currency, total]) => {
-                      const atomicBalance = total as number;
-                      if (atomicBalance <= 0) return null;
-                      
-                      const displayBalance = usdService.convertFromAtomicUnits(atomicBalance, currency as CryptoCurrency);
-                      const usdValue = usdService.calculateUSDValue(displayBalance, currency as CryptoCurrency);
-                      
-                      return (
-                        <Box key={currency} sx={{ display: 'flex', gap: 0.5 }}>
-                          <Chip 
-                            label={`${usdService.formatCryptoBalance(displayBalance, currency as CryptoCurrency)} ${currency}`} 
-                            color="secondary" 
-                            icon={<BalanceIcon />}
-                            sx={{ fontSize: '0.9rem' }}
-                          />
-                          {usdValue > 0 && (
-                            <Chip 
-                              label={usdService.formatUSDValue(usdValue)} 
-                              color="success" 
-                              variant="outlined"
-                              sx={{ fontSize: '0.9rem' }}
-                            />
-                          )}
-                        </Box>
-                      );
-                    })}
-                    
-                    {/* Grand total USD if multiple currencies */}
-                    {Object.values(calculatePageCurrencyTotals).some(total => total > 0) && 
-                     Object.keys(calculatePageCurrencyTotals).filter(currency => (calculatePageCurrencyTotals as any)[currency] > 0).length > 1 && (
-                      <Chip 
-                        label={`Total: ${usdService.formatUSDValue(
-                          Object.entries(calculatePageCurrencyTotals).reduce((total: number, [currency, atomicBalance]) => {
-                            const atomicBalanceNum = atomicBalance as number;
-                            const displayBalance = usdService.convertFromAtomicUnits(atomicBalanceNum, currency as CryptoCurrency);
-                            return total + usdService.calculateUSDValue(displayBalance, currency as CryptoCurrency);
-                          }, 0)
-                        )}`}
-                        color="primary"
-                        variant="filled"
-                        sx={{ fontSize: '1rem', fontWeight: 'bold' }}
-                      />
-                    )}
-                  </Box>
-                </Box>
+
 
                 <UltraOptimizedDashboard
                   pageData={pageData}

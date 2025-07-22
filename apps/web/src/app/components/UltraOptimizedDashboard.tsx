@@ -131,15 +131,7 @@ const isMultiCurrency = (key: any): boolean => {
   // Legacy format has direct address fields like p2pkh_compressed at top level
   const hasLegacyFormat = key.addresses.p2pkh_compressed !== undefined;
   
-  // Debug logging for the first key to understand the structure
-  if (key.index === 0) {
-    console.log('🔍 Multi-currency detection debug for first key:');
-    console.log('  - currencyKeys:', currencyKeys);
-    console.log('  - hasCurrencySymbols:', hasCurrencySymbols);
-    console.log('  - hasLegacyFormat:', hasLegacyFormat);
-    console.log('  - addresses structure:', JSON.stringify(key.addresses, null, 2).substring(0, 500) + '...');
-    console.log('  - isMultiCurrency result:', hasCurrencySymbols && !hasLegacyFormat);
-  }
+
   
   return hasCurrencySymbols && !hasLegacyFormat;
 };

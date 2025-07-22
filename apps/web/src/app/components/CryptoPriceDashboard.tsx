@@ -12,13 +12,16 @@ import {
   IconButton,
   Tooltip,
   Fade,
-  Skeleton
+  Skeleton,
+  Collapse
 } from '@mui/material';
 import {
   TrendingUp,
   TrendingDown,
   Refresh,
-  Timeline
+  Timeline,
+  ExpandMore,
+  ExpandLess
 } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
 import { USDCalculationService } from '../../lib/services/USDCalculationService';
@@ -49,10 +52,12 @@ interface CryptoPriceData {
 
 interface CryptoPriceDashboardProps {
   refreshInterval?: number; // default 30000ms
+  defaultCollapsed?: boolean; // default false
 }
 
 const CryptoPriceDashboard = memo<CryptoPriceDashboardProps>(({ 
-  refreshInterval = 30000 
+  refreshInterval = 30000,
+  defaultCollapsed = false
 }) => {
   const theme = useTheme();
   const [priceData, setPriceData] = useState<CryptoPriceData[]>([]);
@@ -60,6 +65,7 @@ const CryptoPriceDashboard = memo<CryptoPriceDashboardProps>(({
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   
   // Get USD calculation service instance
   const usdService = USDCalculationService.getInstance();
@@ -285,35 +291,60 @@ const CryptoPriceDashboard = memo<CryptoPriceDashboardProps>(({
       }}>
         <CardContent>
           {/* Header */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: collapsed ? 0 : 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Timeline color="primary" />
               <Typography variant="h6">Live Crypto Prices</Typography>
+              <Chip 
+                label={`${priceData.length} tokens`} 
+                size="small" 
+                color="primary" 
+                variant="outlined"
+                sx={{ ml: 1 }}
+              />
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography variant="caption" color="text.secondary">
-                {getTimeAgo}
-              </Typography>
-              <Tooltip title="Refresh prices">
+              {!collapsed && (
+                <>
+                  <Typography variant="caption" color="text.secondary">
+                    {getTimeAgo}
+                  </Typography>
+                  <Tooltip title="Refresh prices">
+                    <IconButton 
+                      onClick={handleRefresh} 
+                      disabled={refreshing}
+                      size="small"
+                    >
+                      <Refresh sx={{ 
+                        animation: refreshing ? 'spin 1s linear infinite' : 'none',
+                        '@keyframes spin': {
+                          '0%': { transform: 'rotate(0deg)' },
+                          '100%': { transform: 'rotate(360deg)' }
+                        }
+                      }} />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              )}
+              <Tooltip title={collapsed ? "Expand crypto prices" : "Collapse crypto prices"}>
                 <IconButton 
-                  onClick={handleRefresh} 
-                  disabled={refreshing}
+                  onClick={() => setCollapsed(!collapsed)}
                   size="small"
+                  sx={{ 
+                    border: '1px solid',
+                    borderColor: 'primary.main',
+                    ml: 1
+                  }}
                 >
-                  <Refresh sx={{ 
-                    animation: refreshing ? 'spin 1s linear infinite' : 'none',
-                    '@keyframes spin': {
-                      '0%': { transform: 'rotate(0deg)' },
-                      '100%': { transform: 'rotate(360deg)' }
-                    }
-                  }} />
+                  {collapsed ? <ExpandMore /> : <ExpandLess />}
                 </IconButton>
               </Tooltip>
             </Box>
           </Box>
 
           {/* Price Cards Grid */}
-          <Grid container spacing={2}>
+          <Collapse in={!collapsed} timeout="auto" unmountOnExit>
+            <Grid container spacing={2}>
             {priceData.map((crypto, index) => {
               const isPositive = crypto.change24h >= 0;
               const changeColor = isPositive ? '#4caf50' : '#f44336';
@@ -385,6 +416,7 @@ const CryptoPriceDashboard = memo<CryptoPriceDashboardProps>(({
               );
             })}
           </Grid>
+          </Collapse>
         </CardContent>
       </Card>
     </Fade>
