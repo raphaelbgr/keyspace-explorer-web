@@ -91,7 +91,7 @@ export class AddressFormatDetector {
     }
 
     // Zcash (ZEC) - Transparent addresses (start with t1 or t3)
-    else if (/^t1[A-HJ-NP-Za-km-z1-9]{32}$/.test(trimmedAddress) || /^t3[A-HJ-NP-Za-km-z1-9]{32}$/.test(trimmedAddress)) {
+    else if (/^t1[A-HJ-NP-Za-km-z1-9]{30,35}$/.test(trimmedAddress) || /^t3[A-HJ-NP-Za-km-z1-9]{30,35}$/.test(trimmedAddress)) {
       detectedCurrencies.push('ZEC');
     }
 

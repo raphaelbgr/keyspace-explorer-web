@@ -39,14 +39,14 @@ async function handlePOST(request: NextRequest) {
 
     console.log(`🚀 Address format optimization:`, optimizationStats);
     
-    // Override optimization if currencies are explicitly specified (legacy support)
+    // Apply currency filtering if currencies are explicitly specified
     let finalCurrencyToAddresses = currencyToAddresses;
     
     if (currencies && Array.isArray(currencies) && currencies.length > 0) {
       const requestedCurrencies = currencies.filter((c: string) => SUPPORTED_CURRENCIES.includes(c as CryptoCurrency)) as CryptoCurrency[];
-      console.log(`📌 Legacy mode: currencies explicitly specified: ${requestedCurrencies.join(', ')}`);
+      console.log(`🎯 Currency filtering: only checking for ${requestedCurrencies.join(', ')}`);
       
-      // If currencies are explicitly specified, use legacy behavior but still optimize per currency
+      // Still use address format detection, but filter to only requested currencies
       finalCurrencyToAddresses = {
         BTC: [],
         BCH: [],
@@ -57,10 +57,15 @@ async function handlePOST(request: NextRequest) {
         XRP: [],
         ZEC: []
       };
+      
+      // For each requested currency, only include addresses that support it
       requestedCurrencies.forEach(currency => {
-        finalCurrencyToAddresses[currency] = addresses; // Check all addresses against specified currencies
+        if (currencyToAddresses[currency] && currencyToAddresses[currency].length > 0) {
+          finalCurrencyToAddresses[currency] = currencyToAddresses[currency];
+        }
       });
-      console.log(`⚠️  Using legacy mode - optimization bypassed`);
+      
+      console.log(`✅ Optimized currency filtering applied - only relevant addresses per currency`);
     }
 
     // Process each currency with its relevant addresses
@@ -90,11 +95,21 @@ async function handlePOST(request: NextRequest) {
     let totalCacheMisses = 0;
     let totalExternalAPICalls = 0;
 
-    // Process results by currency
+    // Process results by currency - only include currencies that were actually checked
+    const addressToCurrenciesMap: Record<string, Set<CryptoCurrency>> = {};
+    
     balanceResponses.forEach(response => {
       totalCacheHits += response.cacheHits;
       totalCacheMisses += response.cacheMisses;
       totalExternalAPICalls += response.externalAPICalls;
+
+      // Track which currencies were checked for each address
+      response.addressList.forEach(address => {
+        if (!addressToCurrenciesMap[address]) {
+          addressToCurrenciesMap[address] = new Set();
+        }
+        addressToCurrenciesMap[address].add(response.currencyType);
+      });
 
       response.results.forEach(result => {
         if (!aggregatedResults[result.address]) {
@@ -126,9 +141,7 @@ async function handlePOST(request: NextRequest) {
       metadata: {
         totalAddresses: addresses.length,
         currenciesChecked,
-        optimizationStats: currencies && Array.isArray(currencies) && currencies.length > 0 
-          ? undefined  // Don't show optimization stats in legacy mode
-          : optimizationStats,
+        optimizationStats,
         cacheHits: totalCacheHits,
         cacheMisses: totalCacheMisses,
         externalAPICalls: totalExternalAPICalls,

@@ -22,6 +22,8 @@ import * as bchaddr from 'bchaddrjs';
 // @ts-ignore  
 import * as rippleCodec from 'ripple-address-codec';
 import * as bs58check from 'bs58check';
+// @ts-ignore
+import * as keccak from 'keccak';
 
 // Initialize ECC for bitcoinjs-lib
 bitcoin.initEccLib(ecc);
@@ -328,7 +330,7 @@ export class MultiCurrencyKeyGenerationService {
       const publicKeyWithoutPrefix = publicKey.slice(1);
       
       // Ethereum address is the last 20 bytes of the keccak256 hash of the public key
-      const hash = createHash('sha256').update(publicKeyWithoutPrefix).digest(); // Using SHA256 as Keccak256 substitute
+      const hash = keccak('keccak256').update(publicKeyWithoutPrefix).digest();
       const address = `0x${hash.slice(-20).toString('hex')}`;
 
       return {
