@@ -61,9 +61,11 @@ A sophisticated web application for exploring the Bitcoin private key space with
 - **Accessibility**: WCAG compliant interface
 
 ## 📱 Application Preview
+<img width="512" height="4000" alt="image" src="https://github.com/user-attachments/assets/00cbaa9e-41ab-4b07-acc0-1ed3a6947b4e" />
+
 
 ### 🎯 Grid View - Rich Card Display
-![Grid View](https://github.com/raphaelbgr/keyspace-explorer-web/assets/screenshot-grid-view.png)
+<img width="512" height="450" alt="image" src="https://github.com/user-attachments/assets/00c40cb2-405b-4732-884c-8bb259371acf" />
 
 The **Grid View** provides a comprehensive card-based interface featuring:
 - **Balance Overview**: Total page balance prominently displayed (2.50000000 BTC shown)
@@ -74,7 +76,7 @@ The **Grid View** provides a comprehensive card-based interface featuring:
 - **Visual Hierarchy**: Clean, modern card design with clear data organization
 
 ### 🔍 Address Details Modal
-![Address Details Modal](https://github.com/raphaelbgr/keyspace-explorer-web/assets/screenshot-address-modal.png)
+<img width="512" height="370" alt="image" src="https://github.com/user-attachments/assets/a899def7-f476-4e43-841a-4e7652d3a653" />
 
 The **Address Details Modal** provides in-depth information:
 - **Private Key Display**: Full 64-character hexadecimal private key with copy functionality
@@ -85,7 +87,7 @@ The **Address Details Modal** provides in-depth information:
 - **Clean Interface**: Professional table layout with clear typography
 
 ### 📊 Table View - Compact Data Display
-![Table View](https://github.com/raphaelbgr/keyspace-explorer-web/assets/screenshot-table-view.png)
+<img width="512" height="450" alt="image" src="https://github.com/user-attachments/assets/6ae67a8f-e37e-4719-ba88-31c7799e19f4" />
 
 The **Table View** offers efficient data browsing:
 - **Expandable Rows**: Click to expand any key for detailed information
