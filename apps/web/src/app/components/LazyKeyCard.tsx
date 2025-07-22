@@ -329,7 +329,7 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <KeyIcon color="primary" sx={{ fontSize: '1rem' }} />
-            <Typography variant="subtitle2" color="text.secondary">
+            <Typography variant="subtitle2" color="text.secondary" sx={{ fontSize: '0.9rem', fontWeight: 'bold' }}>
               Key {keyNumber}
             </Typography>
             {hasFunds && (
@@ -372,7 +372,7 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
         {isMultiCurrency && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
             <CurrencyExchangeIcon sx={{ fontSize: '0.8rem', color: 'primary.main' }} />
-            <Typography variant="caption" color="primary.main" sx={{ fontSize: '0.7rem' }}>
+            <Typography variant="caption" color="primary.main" sx={{ fontSize: '0.8rem' }}>
               Multi-Currency Key ({availableCurrencies.length} cryptocurrencies)
             </Typography>
             {nonBTCCurrencies.length > 0 && (
@@ -390,7 +390,7 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
         <Typography variant="body2" fontFamily="monospace" sx={{ 
           wordBreak: 'break-all', 
           mb: 1, 
-          fontSize: '0.7rem',
+          fontSize: '0.8rem',
           opacity: 0.7
         }}>
           {keyData.privateKey.substring(0, 16)}...
@@ -414,7 +414,7 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
             <Box sx={{ textAlign: 'center' }}>
               <BalanceIcon sx={{ fontSize: '1.5rem', color: hasFunds ? 'success.main' : 'text.secondary', mb: 0.5 }} />
               <Typography variant="h6" fontFamily="monospace" sx={{ 
-                fontSize: '1rem',
+                fontSize: '1.1rem',
                 fontWeight: 'bold',
                 color: hasFunds ? 'success.main' : 'text.primary'
               }}>
@@ -423,7 +423,7 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
                   : (keyData.totalBalance || Object.values(safeBalances).reduce((sum, bal) => sum + bal, 0)).toFixed(8)
                 }
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.75rem' }}>
                 {isMultiCurrency ? 'Multi-Currency Total' : 'BTC'}
               </Typography>
               {hasFunds && (

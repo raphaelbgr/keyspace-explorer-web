@@ -358,25 +358,41 @@ export default function Dashboard() {
             const updatedData = { ...data };
             updatedData.keys = updatedData.keys.map((key: any) => {
               const keyBalances: any = {};
+              let hasAnyFunds = false;
+              const fundedCurrencies: string[] = [];
               
               // For each currency and address type, check if we have balance data
               Object.entries(key.addresses).forEach(([currency, addresses]: [string, any]) => {
                 keyBalances[currency] = {};
+                let currencyHasFunds = false;
+                
                 Object.entries(addresses).forEach(([addrType, address]: [string, any]) => {
                   // Check if this address has balance data and the currency is present
                   if (allBalances[address] && allBalances[address][currency]) {
                     keyBalances[currency][addrType] = allBalances[address][currency];
+                    const balance = parseFloat(allBalances[address][currency].balance || '0');
+                    if (balance > 0) {
+                      hasAnyFunds = true;
+                      currencyHasFunds = true;
+                    }
                   } else {
                     // Only set zero balance if the address format should support this currency
                     // The optimized API will only return data for relevant currencies
                     keyBalances[currency][addrType] = { balance: "0", source: "local" };
                   }
                 });
+                
+                if (currencyHasFunds) {
+                  fundedCurrencies.push(currency);
+                }
               });
               
               return {
                 ...key,
-                balances: keyBalances
+                balances: keyBalances,
+                hasAnyFunds,
+                fundedCurrencies,
+                totalBalance: 0 // Will be calculated by existing helper functions
               };
             });
             
@@ -615,13 +631,44 @@ export default function Dashboard() {
               const updatedData = { ...data };
               
               if (data.multiCurrency) {
-                // Handle multi-currency balance updates
-                // TODO: Implement multi-currency balance mapping
-                updatedData.keys = data.keys.map((key: any) => ({
-                  ...key,
-                  balances: balances || {},
-                  totalBalance: 0 // Calculate from multi-currency balances
-                }));
+                // Handle multi-currency balance updates - FIXED!
+                updatedData.keys = data.keys.map((key: any) => {
+                  const keyBalances: any = {};
+                  let hasAnyFunds = false;
+                  const fundedCurrencies: string[] = [];
+                  
+                  // For each currency and address type, map the balance data correctly
+                  Object.entries(key.addresses).forEach(([currency, addresses]: [string, any]) => {
+                    keyBalances[currency] = {};
+                    let currencyHasFunds = false;
+                    
+                    Object.entries(addresses).forEach(([addrType, address]: [string, any]) => {
+                      // Check if this address has balance data from the API
+                      if (balances.balances && balances.balances[address] && balances.balances[address][currency]) {
+                        keyBalances[currency][addrType] = balances.balances[address][currency];
+                        const balance = parseFloat(balances.balances[address][currency].balance || '0');
+                        if (balance > 0) {
+                          hasAnyFunds = true;
+                          currencyHasFunds = true;
+                        }
+                      } else {
+                        keyBalances[currency][addrType] = { balance: "0", source: "local" };
+                      }
+                    });
+                    
+                    if (currencyHasFunds) {
+                      fundedCurrencies.push(currency);
+                    }
+                  });
+                  
+                  return {
+                    ...key,
+                    balances: keyBalances,
+                    hasAnyFunds,
+                    fundedCurrencies,
+                    totalBalance: 0 // Will be calculated by existing helper functions
+                  };
+                });
               } else {
                 // Legacy Bitcoin-only balance updates
                 updatedData.keys = data.keys.map((key: any) => {
@@ -845,13 +892,44 @@ export default function Dashboard() {
               const updatedData = { ...data };
               
               if (data.multiCurrency) {
-                // Handle multi-currency balance updates
-                // TODO: Implement multi-currency balance mapping
-                updatedData.keys = data.keys.map((key: any) => ({
-                  ...key,
-                  balances: balances || {},
-                  totalBalance: 0 // Calculate from multi-currency balances
-                }));
+                // Handle multi-currency balance updates - FIXED!
+                updatedData.keys = data.keys.map((key: any) => {
+                  const keyBalances: any = {};
+                  let hasAnyFunds = false;
+                  const fundedCurrencies: string[] = [];
+                  
+                  // For each currency and address type, map the balance data correctly
+                  Object.entries(key.addresses).forEach(([currency, addresses]: [string, any]) => {
+                    keyBalances[currency] = {};
+                    let currencyHasFunds = false;
+                    
+                    Object.entries(addresses).forEach(([addrType, address]: [string, any]) => {
+                      // Check if this address has balance data from the API
+                      if (balances.balances && balances.balances[address] && balances.balances[address][currency]) {
+                        keyBalances[currency][addrType] = balances.balances[address][currency];
+                        const balance = parseFloat(balances.balances[address][currency].balance || '0');
+                        if (balance > 0) {
+                          hasAnyFunds = true;
+                          currencyHasFunds = true;
+                        }
+                      } else {
+                        keyBalances[currency][addrType] = { balance: "0", source: "local" };
+                      }
+                    });
+                    
+                    if (currencyHasFunds) {
+                      fundedCurrencies.push(currency);
+                    }
+                  });
+                  
+                  return {
+                    ...key,
+                    balances: keyBalances,
+                    hasAnyFunds,
+                    fundedCurrencies,
+                    totalBalance: 0 // Will be calculated by existing helper functions
+                  };
+                });
               } else {
                 // Legacy Bitcoin-only balance updates
                 updatedData.keys = data.keys.map((key: any) => {
@@ -1150,6 +1228,10 @@ export default function Dashboard() {
             defaultCollapsed={true}
           />
         )}
+
+
+
+
 
         {/* Scanner Card */}
         <ScannerCard

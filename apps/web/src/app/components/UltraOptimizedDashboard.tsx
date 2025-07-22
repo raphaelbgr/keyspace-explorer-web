@@ -203,6 +203,79 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
     return optimizedKeys.some(key => isMultiCurrency(key));
   }, [optimizedKeys]);
 
+  // Calculate page totals for the header - ONLY when balance data is loaded
+  const pageTotals = useMemo(() => {
+    // Check if balance data is actually loaded - skip calculation if not
+    const hasBalanceData = optimizedKeys.some(key => 
+      key.balances && 
+      Object.keys(key.balances).length > 0 && 
+      key.fundedCurrencies !== undefined
+    );
+    
+    if (!hasBalanceData) {
+      // Return empty totals if balance data isn't loaded yet
+      return {
+        totalUSD: 0,
+        totalFundedKeys: 0,
+        currencyCounts: ALL_CURRENCIES.reduce((acc, currency) => ({ ...acc, [currency]: 0 }), {}) as Record<CryptoCurrency, number>,
+        currencyTotals: ALL_CURRENCIES.reduce((acc, currency) => ({ ...acc, [currency]: 0 }), {}) as Record<CryptoCurrency, number>,
+        fundedCurrencies: []
+      };
+    }
+    
+    const currencyCounts: Record<CryptoCurrency, number> = {} as Record<CryptoCurrency, number>;
+    const currencyTotals: Record<CryptoCurrency, number> = {} as Record<CryptoCurrency, number>;
+    
+    // Initialize counts and totals
+    ALL_CURRENCIES.forEach(currency => {
+      currencyCounts[currency] = 0;
+      currencyTotals[currency] = 0;
+    });
+
+    let totalUSD = 0;
+    let totalFundedKeys = 0;
+
+    optimizedKeys.forEach((key, index) => {
+      const keyHasFunds = key.hasAnyFunds || getTotalBalance(key) > 0;
+      
+      if (keyHasFunds) {
+        totalFundedKeys++;
+      }
+
+      // Use EXACT same logic as the coin totals column that's working correctly
+      const availableCurrencies = getAvailableCurrencies(key);
+      const fundedCurrencies = availableCurrencies.filter(currency => {
+        const balance = getBalance(key, currency);
+        return balance > 0;
+      });
+
+      // Count each funded currency and calculate USD
+      fundedCurrencies.forEach(currency => {
+        currencyCounts[currency]++;
+        const balance = getBalance(key, currency);
+        const displayBalance = usdService.convertFromAtomicUnits(balance, currency);
+        currencyTotals[currency] += displayBalance;
+        const usdValue = usdService.calculateUSDValueFromAtomic(balance, currency);
+        totalUSD += usdValue;
+        
+        // Accumulate totals for header display
+      });
+    });
+
+    // Get funded currencies only
+    const fundedCurrencies = ALL_CURRENCIES.filter(currency => currencyCounts[currency] > 0);
+
+    // Page totals calculated successfully
+
+    return {
+      totalUSD,
+      totalFundedKeys,
+      currencyCounts,
+      currencyTotals,
+      fundedCurrencies
+    };
+  }, [optimizedKeys, usdService]);
+
   const handleToggleExpansion = useCallback((keyIndex: number) => {
     const globalIndex = (currentKeysPage - 1) * keysPerPage + keyIndex;
     
@@ -464,16 +537,39 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <CurrencyExchangeIcon color="primary" />
-                  <Typography variant="subtitle2" color="primary.main">
+                  <Typography variant="h6" color="primary.main" sx={{ fontSize: '1.1rem', fontWeight: 'bold' }}>
                     Multi-Currency Table Mode
                   </Typography>
                   <Chip 
                     label={`${ALL_CURRENCIES.length} Cryptocurrencies`} 
-                    size="small" 
+                    size="medium" 
                     color="primary" 
-                    sx={{ fontSize: '0.6rem' }}
+                    sx={{ fontSize: '0.8rem', fontWeight: '500' }}
                   />
                 </Box>
+
+                {/* PAGE TOTALS - USD and coin counts */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="h6" fontWeight="bold" color="success.main" sx={{ fontSize: '1.25rem' }}>
+                    💰 {usdService.formatUSDValue(pageTotals.totalUSD)}
+                  </Typography>
+                  {pageTotals.fundedCurrencies.length > 0 && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Typography variant="body1" color="text.secondary" sx={{ fontSize: '1rem', fontWeight: '500' }}>|</Typography>
+                      {pageTotals.fundedCurrencies.map((currency, index) => {
+                        const config = CURRENCY_CONFIG[currency];
+                        const total = pageTotals.currencyTotals?.[currency] || 0;
+                        const formattedTotal = usdService.formatCryptoBalance(total, currency);
+                        return (
+                          <Typography key={currency} variant="body1" color="text.secondary" sx={{ fontSize: '1rem', fontWeight: '500' }}>
+                            {config.icon}{formattedTotal} {config.shortName}{index < pageTotals.fundedCurrencies.length - 1 ? ', ' : ''}
+                          </Typography>
+                        );
+                      })}
+                    </Box>
+                  )}
+                </Box>
+
                 <FormControlLabel
                   control={
                     <Switch
@@ -499,7 +595,8 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                 <TableCell>{t.expand}</TableCell>
                 <TableCell>{t.keyNumber}</TableCell>
                 <TableCell>{t.privateKeyHex}</TableCell>
-                  <TableCell align="center">{t.totalBalance}</TableCell>
+                <TableCell align="center">Coin Totals</TableCell>
+                <TableCell align="center">{t.totalBalance}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -526,13 +623,55 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                           {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                         </IconButton>
                       </TableCell>
-                      <TableCell>{truncateKeyNumber(keyNumber)}</TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontSize: '0.9rem', fontWeight: 'bold' }}>
+                          {truncateKeyNumber(keyNumber)}
+                        </Typography>
+                      </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <KeyIcon sx={{ fontSize: '1rem', color: '#FFD700' }} />
-                          <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.75rem' }}>
+                          <KeyIcon sx={{ fontSize: '1.2rem', color: '#FFD700' }} />
+                          <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.85rem' }}>
                             {key.privateKey}
                           </Typography>
+                        </Box>
+                      </TableCell>
+                      
+                      {/* COIN TOTALS COLUMN */}
+                      <TableCell align="center">
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+                          {(() => {
+                            const availableCurrencies = getAvailableCurrencies(key);
+                            const fundedCurrencies = availableCurrencies.filter(currency => {
+                              const balance = getBalance(key, currency);
+                              return balance > 0;
+                            });
+
+                            if (fundedCurrencies.length === 0) {
+                              return (
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                  No funds
+                                </Typography>
+                              );
+                            }
+
+                            return fundedCurrencies.map(currency => {
+                              const config = CURRENCY_CONFIG[currency];
+                              const balance = getBalance(key, currency);
+                              const formattedBalance = usdService.formatCryptoBalance(
+                                usdService.convertFromAtomicUnits(balance, currency), 
+                                currency
+                              );
+                              return (
+                                <Box key={currency} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <Typography sx={{ fontSize: '0.8rem' }}>{config.icon}</Typography>
+                                  <Typography variant="caption" sx={{ fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                    {formattedBalance} {config.shortName}
+                                  </Typography>
+                                </Box>
+                              );
+                            });
+                          })()}
                         </Box>
                       </TableCell>
                         

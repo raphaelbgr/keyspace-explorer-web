@@ -33,12 +33,14 @@ const USFlag = () => (
 );
 
 const BrazilFlag = () => (
-  <svg width="24" height="16" viewBox="0 0 24 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="24" height="16" fill="#009C3B"/>
-    <path d="M12 8L8 4L12 0L16 4L12 8Z" fill="#FFDF00"/>
-    <circle cx="12" cy="8" r="3" fill="#002776"/>
-    <path d="M12 6L10.5 7.5L12 9L13.5 7.5L12 6Z" fill="white"/>
-    <path d="M12 7L11 8L12 9L13 8L12 7Z" fill="white"/>
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="16" viewBox="0 0 720 504">
+    <rect width="720" height="504" fill="#009b3a"/>
+    <polygon points="360,72 648,252 360,432 72,252" fill="#ffdf00"/>
+    <circle cx="360" cy="252" r="100" fill="#002776"/>
+    <path d="M 270 252 a 90 20 0 0 1 180 0 a 90 20 0 0 1 -180 0" fill="white" transform="rotate(-15 360 252)"/>
+    <text x="360" y="258" fontSize="24" fontWeight="bold" textAnchor="middle" fill="white" transform="rotate(-15 360 252)" fontFamily="sans-serif">
+      ORDEM E PROGRESSO
+    </text>
   </svg>
 );
 
