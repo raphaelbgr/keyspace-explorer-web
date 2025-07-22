@@ -175,6 +175,69 @@ export interface BlockchainExplorer {
   transactionURL: (txHash: string) => string;
 }
 
+// Enhanced API Response Types
+export interface CurrencyError {
+  currency: CryptoCurrency;
+  error: string;
+  code: string;
+  details?: string;
+}
+
+export interface CurrencySuccess {
+  currency: CryptoCurrency;
+  addressCount: number;
+  generationTime: number;
+}
+
+export interface MultiCurrencyAPIResponse {
+  success: boolean;
+  pageNumber: string;
+  keys: Array<{
+    privateKey: string;
+    pageNumber: string;
+    index: number;
+    addresses: Partial<CurrencyAddressMap>;
+    balances: Record<string, any>;
+    totalBalance: number;
+  }>;
+  totalPageBalance: number;
+  generatedAt: string;
+  balancesFetched: boolean;
+  multiCurrency: boolean;
+  currencies: CryptoCurrency[];
+  metadata: {
+    supportedCurrencies: CryptoCurrency[];
+    totalAddressCount: number;
+    generationTime: number;
+    isRandomGeneration?: boolean;
+    currencyResults: CurrencySuccess[];
+    currencyErrors?: CurrencyError[];
+    compressionUsed?: boolean;
+    responseSize?: number;
+  };
+  errors?: CurrencyError[];
+  warnings?: string[];
+}
+
+export interface PerformanceMetrics {
+  requestStartTime: number;
+  requestEndTime: number;
+  totalDuration: number;
+  generationTime: number;
+  memoryUsage: {
+    beforeGeneration: number;
+    afterGeneration: number;
+    peakUsage: number;
+  };
+  currencyTimings: Record<CryptoCurrency, number>;
+}
+
+export interface APITimeout {
+  total: number; // Total request timeout
+  perCurrency: number; // Per currency generation timeout
+  gracefulDegradation: boolean; // Allow partial results
+}
+
 // Configuration Constants
 export const CURRENCY_CONFIGS: Record<CryptoCurrency, CurrencyConfig> = {
   BTC: {
@@ -272,4 +335,20 @@ export const CURRENCY_CONFIGS: Record<CryptoCurrency, CurrencyConfig> = {
   }
 };
 
-export const SUPPORTED_CURRENCIES: CryptoCurrency[] = Object.keys(CURRENCY_CONFIGS) as CryptoCurrency[]; 
+export const SUPPORTED_CURRENCIES: CryptoCurrency[] = Object.keys(CURRENCY_CONFIGS) as CryptoCurrency[];
+
+// API Configuration Constants
+export const API_TIMEOUTS: APITimeout = {
+  total: 30000, // 30 seconds total request timeout
+  perCurrency: 5000, // 5 seconds per currency
+  gracefulDegradation: true
+};
+
+export const ERROR_CODES = {
+  CURRENCY_GENERATION_FAILED: 'CURRENCY_GENERATION_FAILED',
+  CURRENCY_TIMEOUT: 'CURRENCY_TIMEOUT',
+  INVALID_CURRENCY: 'INVALID_CURRENCY',
+  PARTIAL_GENERATION_SUCCESS: 'PARTIAL_GENERATION_SUCCESS',
+  MEMORY_LIMIT_EXCEEDED: 'MEMORY_LIMIT_EXCEEDED',
+  RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED'
+} as const; 

@@ -74,9 +74,9 @@ export class MultiCurrencyBalanceService {
       rateLimit: { requestsPerSecond: 10 }
     },
     ZEC: {
-      name: 'ZEC Explorer',
-      baseURL: 'https://zec-explorer.example.com',
-      batchEndpoint: '/api/addr/{address}/balance',
+      name: 'ZEC Explorer (Disabled)',
+      baseURL: 'https://disabled-zec-api.local',
+      batchEndpoint: '/api/disabled',
       maxBatchSize: 1,
       rateLimit: { requestsPerSecond: 5 }
     }
@@ -393,8 +393,15 @@ export class MultiCurrencyBalanceService {
           response = await this.callXRPLAPI(normalizedAddresses);
           break;
         case 'ZEC':
-          response = await this.callZECAPI(normalizedAddresses);
-          break;
+          // ZEC external API is disabled due to reliability issues - return zero balances
+          console.log(`⚠️ ZEC external API disabled - returning zero balances for ${normalizedAddresses.length} addresses`);
+          return addresses.map(address => ({
+            address,
+            currency,
+            balance: '0',
+            source: 'external' as BalanceSource,
+            error: 'ZEC external API disabled'
+          }));
         default:
           throw new Error(`Unsupported currency: ${currency}`);
       }

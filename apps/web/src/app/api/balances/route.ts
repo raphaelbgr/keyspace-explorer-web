@@ -11,7 +11,7 @@ async function handlePOST(request: NextRequest) {
   try {
 
     const body = await request.json();
-    const { addresses, currencies, forceRefresh = false, forceLocal = false } = body;
+    const { addresses, currencies, forceRefresh = false, forceLocal = true } = body;
 
     // Validate input
     if (!addresses || !Array.isArray(addresses) || addresses.length === 0) {

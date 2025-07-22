@@ -101,7 +101,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [scanProgress, setScanProgress] = useState(0);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [apiSource, setApiSource] = useState<string>('external');
+  const [apiSource, setApiSource] = useState<string>('local');
   const [expandedKeys, setExpandedKeys] = useState<Set<number>>(new Set());
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('table');
   const [keysPerPage, setKeysPerPage] = useState(45);
