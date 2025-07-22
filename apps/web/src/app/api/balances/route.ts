@@ -21,9 +21,9 @@ async function handlePOST(request: NextRequest) {
       );
     }
 
-    if (addresses.length > 1000) {
+    if (addresses.length > 100000) {
       return NextResponse.json(
-        { error: 'Maximum 1000 addresses allowed per request' },
+        { error: 'Maximum 100,000 addresses allowed per request' },
         { status: 400 }
       );
     }

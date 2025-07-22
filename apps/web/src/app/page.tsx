@@ -51,6 +51,7 @@ import { useScannerStore } from './store/scannerStore';
 import { clientKeyGenerationService } from '../lib/services/ClientKeyGenerationService';
 import CryptoPriceDashboard from './components/CryptoPriceDashboard';
 import { CryptoCurrency } from '../lib/types/multi-currency';
+import { USDCalculationService } from '../lib/services/USDCalculationService';
 
 interface PageData {
   pageNumber: string;
@@ -107,6 +108,43 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [scanProgress, setScanProgress] = useState(0);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  
+  // Get USD calculation service
+  const usdService = USDCalculationService.getInstance();
+  
+  // Helper function to calculate page totals by currency
+  const calculatePageCurrencyTotals = useMemo(() => {
+    if (!pageData?.keys) return {};
+    
+    const totals: Record<CryptoCurrency, number> = {
+      BTC: 0, BCH: 0, DASH: 0, DOGE: 0, ETH: 0, LTC: 0, XRP: 0, ZEC: 0
+    };
+    
+    pageData.keys.forEach(key => {
+      if (key.balances && typeof key.balances === 'object') {
+        // Multi-currency format
+        Object.keys(totals).forEach(currency => {
+          const currencyBalances = key.balances[currency];
+          if (currencyBalances && typeof currencyBalances === 'object') {
+            const currencyTotal = Object.values(currencyBalances).reduce((sum: number, bal: any) => {
+              if (typeof bal === 'number') return sum + bal;
+              if (bal && typeof bal === 'object' && bal.balance !== undefined) {
+                return sum + parseFloat(bal.balance);
+              }
+              return sum;
+            }, 0);
+            totals[currency as CryptoCurrency] += currencyTotal;
+          }
+        });
+      } else {
+        // Legacy Bitcoin-only format
+        totals.BTC += key.totalBalance || 0;
+      }
+    });
+    
+    return totals;
+  }, [pageData]);
+  
   const [apiSource, setApiSource] = useState<string>('local');
   const [expandedKeys, setExpandedKeys] = useState<Set<number>>(new Set());
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('table');
@@ -1326,11 +1364,51 @@ export default function Dashboard() {
                       label={`${pageData.keys.length} ${t.keys}`} 
                       color="primary" 
                     />
-                    <Chip 
-                      label={`${pageData.totalPageBalance.toFixed(8)} ${t.btc}`} 
-                      color="secondary" 
-                      icon={<BalanceIcon />}
-                    />
+                    
+                    {/* Currency totals with USD values */}
+                    {Object.entries(calculatePageCurrencyTotals).map(([currency, total]) => {
+                      const atomicBalance = total as number;
+                      if (atomicBalance <= 0) return null;
+                      
+                      const displayBalance = usdService.convertFromAtomicUnits(atomicBalance, currency as CryptoCurrency);
+                      const usdValue = usdService.calculateUSDValue(displayBalance, currency as CryptoCurrency);
+                      
+                      return (
+                        <Box key={currency} sx={{ display: 'flex', gap: 0.5 }}>
+                          <Chip 
+                            label={`${usdService.formatCryptoBalance(displayBalance, currency as CryptoCurrency)} ${currency}`} 
+                            color="secondary" 
+                            icon={<BalanceIcon />}
+                            sx={{ fontSize: '0.9rem' }}
+                          />
+                          {usdValue > 0 && (
+                            <Chip 
+                              label={usdService.formatUSDValue(usdValue)} 
+                              color="success" 
+                              variant="outlined"
+                              sx={{ fontSize: '0.9rem' }}
+                            />
+                          )}
+                        </Box>
+                      );
+                    })}
+                    
+                    {/* Grand total USD if multiple currencies */}
+                    {Object.values(calculatePageCurrencyTotals).some(total => total > 0) && 
+                     Object.keys(calculatePageCurrencyTotals).filter(currency => (calculatePageCurrencyTotals as any)[currency] > 0).length > 1 && (
+                      <Chip 
+                        label={`Total: ${usdService.formatUSDValue(
+                          Object.entries(calculatePageCurrencyTotals).reduce((total: number, [currency, atomicBalance]) => {
+                            const atomicBalanceNum = atomicBalance as number;
+                            const displayBalance = usdService.convertFromAtomicUnits(atomicBalanceNum, currency as CryptoCurrency);
+                            return total + usdService.calculateUSDValue(displayBalance, currency as CryptoCurrency);
+                          }, 0)
+                        )}`}
+                        color="primary"
+                        variant="filled"
+                        sx={{ fontSize: '1rem', fontWeight: 'bold' }}
+                      />
+                    )}
                   </Box>
                 </Box>
 
