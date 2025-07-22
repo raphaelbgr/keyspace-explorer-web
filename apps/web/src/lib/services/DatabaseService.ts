@@ -136,6 +136,23 @@ export class DatabaseService {
   }
 
   /**
+   * Execute a generic SQL query with parameters
+   */
+  async executeQuery(query: string, params: any[] = []): Promise<any> {
+    const client: PoolClient = await this.pool.connect();
+    
+    try {
+      const result = await client.query(query, params);
+      return result;
+    } catch (error) {
+      console.error('Database query error:', error);
+      throw new Error(`Database query failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
    * Close the database connection pool
    */
   async close(): Promise<void> {

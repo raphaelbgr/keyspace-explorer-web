@@ -5,11 +5,11 @@ import { secureRandomBigInt, generateUniformRandomInRange } from '../utils/secur
 interface NavigationState {
   // Current navigation state
   currentPage: number;
-  totalPages: bigint; // Changed to BigInt to handle large numbers
+  totalPages: string; // Changed to string to handle serialization
   keysPerPage: number;
   
   // Dynamic calculation settings
-  estimatedTotalKeys: bigint;
+  estimatedTotalKeys: string; // Changed to string to handle serialization
   keysPerPageOptions: number[];
   
   // Actions
@@ -24,15 +24,19 @@ interface NavigationState {
   canNavigateBackward: () => boolean;
   getPageRange: (aroundPage: number, range: number) => number[];
   getLastPageNumber: () => string; // New method to get last page as string
+  
+  // Utility methods to convert to BigInt when needed
+  getTotalPagesBigInt: () => bigint;
+  getEstimatedTotalKeysBigInt: () => bigint;
 }
 
 export const useNavigationStore = create<NavigationState>()(
   persist(
     (set, get) => ({
       currentPage: 1,
-      totalPages: BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140") / BigInt(45), // Calculate for default 45 keys per page
+      totalPages: (BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140") / BigInt(45)).toString(), // Store as string
       keysPerPage: 45,
-      estimatedTotalKeys: BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140"), // Maximum Bitcoin private key
+      estimatedTotalKeys: BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140").toString(), // Store as string
       keysPerPageOptions: [10, 25, 45, 50, 100, 250, 500, 1000, 10000],
       
       setCurrentPage: (page: number) => {
@@ -40,19 +44,20 @@ export const useNavigationStore = create<NavigationState>()(
       },
       
       setTotalPages: (pages: bigint) => {
-        set({ totalPages: pages > BigInt(0) ? pages : BigInt(1) });
+        set({ totalPages: (pages > BigInt(0) ? pages : BigInt(1)).toString() });
       },
       
       setKeysPerPage: (keysPerPage: number) => {
         const state = get();
         // Use BigInt arithmetic to avoid Number conversion issues
-        const totalPagesBigInt = state.estimatedTotalKeys / BigInt(keysPerPage);
-        const remainder = state.estimatedTotalKeys % BigInt(keysPerPage);
+        const estimatedKeysBigInt = BigInt(state.estimatedTotalKeys);
+        const totalPagesBigInt = estimatedKeysBigInt / BigInt(keysPerPage);
+        const remainder = estimatedKeysBigInt % BigInt(keysPerPage);
         const newTotalPages = remainder > BigInt(0) ? totalPagesBigInt + BigInt(1) : totalPagesBigInt;
         
         set({ 
           keysPerPage, 
-          totalPages: newTotalPages,
+          totalPages: newTotalPages.toString(),
           currentPage: Math.min(state.currentPage, Number(newTotalPages))
         });
       },
@@ -61,13 +66,14 @@ export const useNavigationStore = create<NavigationState>()(
         const state = get();
         // Use BigInt division to avoid Number conversion issues
         // Calculate total pages using BigInt arithmetic
-        const totalPagesBigInt = estimatedKeys / BigInt(state.keysPerPage);
-        const remainder = estimatedKeys % BigInt(state.keysPerPage);
+        const estimatedKeysBigInt = BigInt(state.estimatedTotalKeys);
+        const totalPagesBigInt = estimatedKeysBigInt / BigInt(state.keysPerPage);
+        const remainder = estimatedKeysBigInt % BigInt(state.keysPerPage);
         const totalPages = remainder > BigInt(0) ? totalPagesBigInt + BigInt(1) : totalPagesBigInt;
         
         set({ 
-          estimatedTotalKeys: estimatedKeys,
-          totalPages: totalPages > BigInt(0) ? totalPages : BigInt(1)
+          estimatedTotalKeys: estimatedKeys.toString(),
+          totalPages: totalPages.toString() // Convert to string
         });
       },
       
@@ -75,55 +81,52 @@ export const useNavigationStore = create<NavigationState>()(
         const state = get();
         
         try {
-          // Use the ACTUAL maximum page range based on Bitcoin keyspace and current keysPerPage
-          // This automatically adjusts when keysPerPage changes (45, 100, 1000, etc.)
-          const actualMaxPages = state.totalPages;
+          // Use the secure crypto-based random generation for enhanced randomness
+          // Convert totalPages string to BigInt for calculation
+          const actualMaxPages = BigInt(state.totalPages);
           
           console.log(`Generating random page in range 1 to ${actualMaxPages.toString()}`);
           
-          // Generate cryptographically secure random page within the real calculated range
-          // Use a string-based approach for true uniform distribution
-          const randomPage = generateUniformRandomInRange(actualMaxPages);
-          
-          // Convert to string to preserve precision for very large numbers
-          return randomPage.toString();
+          try {
+            // Use generateUniformRandomInRange with max value
+            const randomBigInt = generateUniformRandomInRange(actualMaxPages);
+            console.log(`Generated random page: ${randomBigInt.toString()}`);
+            return randomBigInt.toString();
+          } catch (error) {
+            console.warn('generateUniformRandomInRange failed, using fallback:', error);
+          }
         } catch (error) {
-          console.warn('Error generating secure random page, falling back to calculated range:', error);
-          // Fallback: use the actual totalPages but with standard crypto random
-          const state = get();
-          const maxPages = state.totalPages;
+          console.warn('Secure random generation failed, using Math.random fallback:', error);
+        }
+        
+        // Final fallback: use the actual totalPages but with standard crypto random
+        const currentState = get();
+        const maxPages = BigInt(currentState.totalPages);
           
           // For very large numbers, use modulo approach with the real range
-          const randomBytes = new Uint8Array(32); // 256 bits of entropy
+        const randomBytes = new Uint32Array(2);
           crypto.getRandomValues(randomBytes);
-          
-          // Convert bytes to BigInt
-          let randomBigInt = BigInt(0);
-          for (let i = 0; i < randomBytes.length; i++) {
-            randomBigInt = randomBigInt * BigInt(256) + BigInt(randomBytes[i]);
-          }
-          
-          // Use modulo with actual max pages to stay in valid range
-          const randomPage = (randomBigInt % maxPages) + BigInt(1);
+        const randomValue = (BigInt(randomBytes[0]) << BigInt(32)) | BigInt(randomBytes[1]);
+        const randomPage = (randomValue % maxPages) + BigInt(1);
+        
           return randomPage.toString();
-        }
       },
       
       canNavigateForward: () => {
         const state = get();
-        return state.currentPage < Number(state.totalPages);
+        return BigInt(state.currentPage) < BigInt(state.totalPages);
       },
       
       canNavigateBackward: () => {
         const state = get();
-        return state.currentPage > 1;
+        return BigInt(state.currentPage) > BigInt(1);
       },
       
       getPageRange: (aroundPage: number, range: number) => {
         const state = get();
-        const totalPagesNum = Number(state.totalPages);
+        const totalPagesNum = BigInt(state.totalPages);
         const start = Math.max(1, aroundPage - range);
-        const end = Math.min(totalPagesNum, aroundPage + range);
+        const end = Math.min(Number(totalPagesNum), aroundPage + range);
         const pages: number[] = [];
         
         for (let i = start; i <= end; i++) {
@@ -135,7 +138,18 @@ export const useNavigationStore = create<NavigationState>()(
 
       getLastPageNumber: () => {
         const state = get();
-        return state.totalPages.toString();
+        return state.totalPages;
+      },
+      
+      // Utility methods to convert to BigInt when needed
+      getTotalPagesBigInt: () => {
+        const state = get();
+        return BigInt(state.totalPages);
+      },
+      
+      getEstimatedTotalKeysBigInt: () => {
+        const state = get();
+        return BigInt(state.estimatedTotalKeys);
       },
     }),
     {
@@ -143,14 +157,14 @@ export const useNavigationStore = create<NavigationState>()(
       partialize: (state) => ({ 
         currentPage: state.currentPage,
         keysPerPage: state.keysPerPage,
-        estimatedTotalKeys: String(state.estimatedTotalKeys),
-        totalPages: String(state.totalPages),
+        estimatedTotalKeys: state.estimatedTotalKeys,
+        totalPages: state.totalPages,
       } as Record<string, unknown>),
       onRehydrateStorage: () => (state) => {
         if (state) {
-          // Convert strings back to BigInt
-          state.estimatedTotalKeys = BigInt(state.estimatedTotalKeys as unknown as string);
-          state.totalPages = BigInt(state.totalPages as unknown as string);
+          // Ensure values are strings (they should already be strings from storage)
+          state.estimatedTotalKeys = String(state.estimatedTotalKeys);
+          state.totalPages = String(state.totalPages);
         }
       },
     }

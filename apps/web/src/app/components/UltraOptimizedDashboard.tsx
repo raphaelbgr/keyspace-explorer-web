@@ -36,6 +36,25 @@ const truncateKeyNumber = (keyNumber: string): string => {
   return keyNumber;
 };
 
+// Helper function to safely get balance value
+const getBalance = (key: any, addressType: string): number => {
+  // Check if it's multi-currency format (key.balances.BTC.p2pkh_compressed)
+  if (key.balances?.BTC && typeof key.balances.BTC === 'object') {
+    const balance = key.balances.BTC[addressType];
+    if (balance && typeof balance === 'object' && balance.balance !== undefined) {
+      return parseFloat(balance.balance);
+    }
+    return typeof balance === 'number' ? balance : 0;
+  }
+  
+  // Check if it's legacy format (key.balances.p2pkh_compressed)
+  if (key.balances && typeof key.balances[addressType] === 'number') {
+    return key.balances[addressType];
+  }
+  
+  return 0;
+};
+
 interface UltraOptimizedDashboardProps {
   pageData: any;
   displayedKeys: any[];
@@ -222,11 +241,11 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                       <TableBody>
                                         <TableRow
                                           sx={{
-                                            bgcolor: key.balances.p2pkh_compressed > 0 ? 'success.main' : 'transparent',
-                                            border: key.balances.p2pkh_compressed > 0 ? '2px solid' : 'none',
+                                            bgcolor: getBalance(key, 'p2pkh_compressed') > 0 ? 'success.main' : 'transparent',
+                                            border: getBalance(key, 'p2pkh_compressed') > 0 ? '2px solid' : 'none',
                                             borderColor: 'success.light',
                                             '&:hover': {
-                                              bgcolor: key.balances.p2pkh_compressed > 0 ? 'success.dark' : 'action.hover',
+                                              bgcolor: getBalance(key, 'p2pkh_compressed') > 0 ? 'success.dark' : 'action.hover',
                                             }
                                           }}
                                         >
@@ -235,7 +254,7 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                               <Typography variant="body2" fontWeight="medium">
                                                 {t.p2pkhCompressed}
                                               </Typography>
-                                              {key.balances.p2pkh_compressed > 0 && (
+                                              {getBalance(key, 'p2pkh_compressed') > 0 && (
                                                 <Chip 
                                                   label="💰 FUNDED!" 
                                                   size="small" 
@@ -253,10 +272,10 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                           </TableCell>
                                           <TableCell align="right">
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
-                                              <Typography variant="body2" fontFamily="monospace" fontWeight={key.balances.p2pkh_compressed > 0 ? 'bold' : 'normal'}>
-                                                {key.balances.p2pkh_compressed.toFixed(8)}
+                                              <Typography variant="body2" fontFamily="monospace" fontWeight={getBalance(key, 'p2pkh_compressed') > 0 ? 'bold' : 'normal'}>
+                                            {getBalance(key, 'p2pkh_compressed').toFixed(8)}
                                               </Typography>
-                                              {key.balances.p2pkh_compressed > 0 && (
+                                              {getBalance(key, 'p2pkh_compressed') > 0 && (
                                                 <Chip 
                                                   label="💰" 
                                                   size="small" 
@@ -289,11 +308,11 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                         </TableRow>
                                         <TableRow
                                           sx={{
-                                            bgcolor: key.balances.p2pkh_uncompressed > 0 ? 'success.main' : 'transparent',
-                                            border: key.balances.p2pkh_uncompressed > 0 ? '2px solid' : 'none',
+                                            bgcolor: getBalance(key, 'p2pkh_uncompressed') > 0 ? 'success.main' : 'transparent',
+                                            border: getBalance(key, 'p2pkh_uncompressed') > 0 ? '2px solid' : 'none',
                                             borderColor: 'success.light',
                                             '&:hover': {
-                                              bgcolor: key.balances.p2pkh_uncompressed > 0 ? 'success.dark' : 'action.hover',
+                                              bgcolor: getBalance(key, 'p2pkh_uncompressed') > 0 ? 'success.dark' : 'action.hover',
                                             }
                                           }}
                                         >
@@ -302,7 +321,7 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                               <Typography variant="body2" fontWeight="medium">
                                                 {t.p2pkhUncompressed}
                                               </Typography>
-                                              {key.balances.p2pkh_uncompressed > 0 && (
+                                              {getBalance(key, 'p2pkh_uncompressed') > 0 && (
                                                 <Chip 
                                                   label="💰 FUNDED!" 
                                                   size="small" 
@@ -320,10 +339,10 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                           </TableCell>
                                           <TableCell align="right">
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
-                                              <Typography variant="body2" fontFamily="monospace" fontWeight={key.balances.p2pkh_uncompressed > 0 ? 'bold' : 'normal'}>
-                                                {key.balances.p2pkh_uncompressed.toFixed(8)}
+                                              <Typography variant="body2" fontFamily="monospace" fontWeight={getBalance(key, 'p2pkh_uncompressed') > 0 ? 'bold' : 'normal'}>
+                                            {getBalance(key, 'p2pkh_uncompressed').toFixed(8)}
                                               </Typography>
-                                              {key.balances.p2pkh_uncompressed > 0 && (
+                                              {getBalance(key, 'p2pkh_uncompressed') > 0 && (
                                                 <Chip 
                                                   label="💰" 
                                                   size="small" 
@@ -356,11 +375,11 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                         </TableRow>
                                         <TableRow
                                           sx={{
-                                            bgcolor: key.balances.p2wpkh > 0 ? 'success.main' : 'transparent',
-                                            border: key.balances.p2wpkh > 0 ? '2px solid' : 'none',
+                                            bgcolor: getBalance(key, 'p2wpkh') > 0 ? 'success.main' : 'transparent',
+                                            border: getBalance(key, 'p2wpkh') > 0 ? '2px solid' : 'none',
                                             borderColor: 'success.light',
                                             '&:hover': {
-                                              bgcolor: key.balances.p2wpkh > 0 ? 'success.dark' : 'action.hover',
+                                              bgcolor: getBalance(key, 'p2wpkh') > 0 ? 'success.dark' : 'action.hover',
                                             }
                                           }}
                                         >
@@ -369,7 +388,7 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                               <Typography variant="body2" fontWeight="medium">
                                                 {t.p2wpkh}
                                               </Typography>
-                                              {key.balances.p2wpkh > 0 && (
+                                              {getBalance(key, 'p2wpkh') > 0 && (
                                                 <Chip 
                                                   label="💰 FUNDED!" 
                                                   size="small" 
@@ -387,10 +406,10 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                           </TableCell>
                                           <TableCell align="right">
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
-                                              <Typography variant="body2" fontFamily="monospace" fontWeight={key.balances.p2wpkh > 0 ? 'bold' : 'normal'}>
-                                                {key.balances.p2wpkh.toFixed(8)}
+                                              <Typography variant="body2" fontFamily="monospace" fontWeight={getBalance(key, 'p2wpkh') > 0 ? 'bold' : 'normal'}>
+                                            {getBalance(key, 'p2wpkh').toFixed(8)}
                                               </Typography>
-                                              {key.balances.p2wpkh > 0 && (
+                                              {getBalance(key, 'p2wpkh') > 0 && (
                                                 <Chip 
                                                   label="💰" 
                                                   size="small" 
@@ -423,11 +442,11 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                         </TableRow>
                                         <TableRow
                                           sx={{
-                                            bgcolor: key.balances.p2sh_p2wpkh > 0 ? 'success.main' : 'transparent',
-                                            border: key.balances.p2sh_p2wpkh > 0 ? '2px solid' : 'none',
+                                            bgcolor: getBalance(key, 'p2sh_p2wpkh') > 0 ? 'success.main' : 'transparent',
+                                            border: getBalance(key, 'p2sh_p2wpkh') > 0 ? '2px solid' : 'none',
                                             borderColor: 'success.light',
                                             '&:hover': {
-                                              bgcolor: key.balances.p2sh_p2wpkh > 0 ? 'success.dark' : 'action.hover',
+                                              bgcolor: getBalance(key, 'p2sh_p2wpkh') > 0 ? 'success.dark' : 'action.hover',
                                             }
                                           }}
                                         >
@@ -436,7 +455,7 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                               <Typography variant="body2" fontWeight="medium">
                                                 {t.p2shP2wpkh}
                                               </Typography>
-                                              {key.balances.p2sh_p2wpkh > 0 && (
+                                              {getBalance(key, 'p2sh_p2wpkh') > 0 && (
                                                 <Chip 
                                                   label="💰 FUNDED!" 
                                                   size="small" 
@@ -454,10 +473,10 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                           </TableCell>
                                           <TableCell align="right">
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
-                                              <Typography variant="body2" fontFamily="monospace" fontWeight={key.balances.p2sh_p2wpkh > 0 ? 'bold' : 'normal'}>
-                                                {key.balances.p2sh_p2wpkh.toFixed(8)}
+                                              <Typography variant="body2" fontFamily="monospace" fontWeight={getBalance(key, 'p2sh_p2wpkh') > 0 ? 'bold' : 'normal'}>
+                                            {getBalance(key, 'p2sh_p2wpkh').toFixed(8)}
                                               </Typography>
-                                              {key.balances.p2sh_p2wpkh > 0 && (
+                                              {getBalance(key, 'p2sh_p2wpkh') > 0 && (
                                                 <Chip 
                                                   label="💰" 
                                                   size="small" 
@@ -490,11 +509,11 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                         </TableRow>
                                         <TableRow
                                           sx={{
-                                            bgcolor: key.balances.p2tr > 0 ? 'success.main' : 'transparent',
-                                            border: key.balances.p2tr > 0 ? '2px solid' : 'none',
+                                            bgcolor: getBalance(key, 'p2tr') > 0 ? 'success.main' : 'transparent',
+                                            border: getBalance(key, 'p2tr') > 0 ? '2px solid' : 'none',
                                             borderColor: 'success.light',
                                             '&:hover': {
-                                              bgcolor: key.balances.p2tr > 0 ? 'success.dark' : 'action.hover',
+                                              bgcolor: getBalance(key, 'p2tr') > 0 ? 'success.dark' : 'action.hover',
                                             }
                                           }}
                                         >
@@ -503,7 +522,7 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                               <Typography variant="body2" fontWeight="medium">
                                                 {t.p2tr}
                                               </Typography>
-                                              {key.balances.p2tr > 0 && (
+                                              {getBalance(key, 'p2tr') > 0 && (
                                                 <Chip 
                                                   label="💰 FUNDED!" 
                                                   size="small" 
@@ -521,10 +540,10 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                                           </TableCell>
                                           <TableCell align="right">
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
-                                              <Typography variant="body2" fontFamily="monospace" fontWeight={key.balances.p2tr > 0 ? 'bold' : 'normal'}>
-                                                {key.balances.p2tr.toFixed(8)}
+                                              <Typography variant="body2" fontFamily="monospace" fontWeight={getBalance(key, 'p2tr') > 0 ? 'bold' : 'normal'}>
+                                            {getBalance(key, 'p2tr').toFixed(8)}
                                               </Typography>
-                                              {key.balances.p2tr > 0 && (
+                                              {getBalance(key, 'p2tr') > 0 && (
                                                 <Chip 
                                                   label="💰" 
                                                   size="small" 

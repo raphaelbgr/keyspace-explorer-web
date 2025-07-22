@@ -59,13 +59,15 @@ const BalanceStatus = ({
               size="small"
             />
             <Tooltip title="Regenerate current page">
-              <IconButton 
-                size="small" 
-                onClick={onRefresh}
-                disabled={isChecking}
-              >
-                <RefreshIcon />
-              </IconButton>
+              <span>
+                <IconButton 
+                  size="small" 
+                  onClick={onRefresh}
+                  disabled={isChecking}
+                >
+                  <RefreshIcon />
+                </IconButton>
+              </span>
             </Tooltip>
           </Box>
         </Box>

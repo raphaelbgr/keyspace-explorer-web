@@ -16,6 +16,10 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "crypto-random-string": "^5.0.0"
+    "@bitgo/utxo-lib": "^11.6.3",
+    "bchaddrjs": "^0.5.2",
+    "crypto-random-string": "^5.0.0",
+    "ethers": "^6.15.0",
+    "ripple-address-codec": "^5.0.0"
   }
 }

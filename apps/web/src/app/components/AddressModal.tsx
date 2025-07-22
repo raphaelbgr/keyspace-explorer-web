@@ -1,12 +1,9 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions,
-  Button,
-  Typography,
-  Box,
+  IconButton,
   Table,
   TableBody,
   TableCell,
@@ -14,456 +11,323 @@ import {
   TableHead,
   TableRow,
   Paper,
+  Typography,
+  Box,
   Chip,
-  IconButton,
+  Button,
   Tooltip,
-  Snackbar,
-  Alert
+  Link,
+  Divider
 } from '@mui/material';
-import { 
-  ContentCopy as ContentCopyIcon, 
+import {
   Close as CloseIcon,
-  OpenInNew as OpenInNewIcon,
-  Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon,
+  ContentCopy as CopyIcon,
+  OpenInNew as ExternalLinkIcon,
   Key as KeyIcon
 } from '@mui/icons-material';
-import { useCopyToClipboard } from '../utils/clipboard';
+
+// Legacy Bitcoin-only structure for backward compatibility
+interface LegacyKeyData {
+  privateKey: string;
+  addresses: {
+    p2pkh_compressed: string;
+    p2pkh_uncompressed: string;
+    p2wpkh: string;
+    p2sh_p2wpkh: string;
+    p2tr: string;
+  };
+  balances?: {
+    p2pkh_compressed: number;
+    p2pkh_uncompressed: number;
+    p2wpkh: number;
+    p2sh_p2wpkh: number;
+    p2tr: number;
+  };
+  totalBalance?: number;
+}
+
+// Multi-currency structure (future use)
+interface MultiCurrencyKeyData {
+  privateKey: string;
+  addresses: any; // CurrencyAddressMap when available
+  balances: any;
+  totalBalance: any;
+  hasAnyFunds?: boolean;
+  fundedCurrencies?: string[];
+}
 
 interface AddressModalProps {
   open: boolean;
   onClose: () => void;
-  keyData: {
-    privateKey: string;
-    addresses: {
-      p2pkh_compressed: string;
-      p2pkh_uncompressed: string;
-      p2wpkh: string;
-      p2sh_p2wpkh: string;
-      p2tr: string;
-    };
-    balances?: {
-      p2pkh_compressed: number;
-      p2pkh_uncompressed: number;
-      p2wpkh: number;
-      p2sh_p2wpkh: number;
-      p2tr: number;
-    };
-    totalBalance: number;
-  } | null;
   keyNumber: number;
+  keyData: LegacyKeyData | MultiCurrencyKeyData;
 }
 
-const AddressModal = ({ open, onClose, keyData, keyNumber }: AddressModalProps) => {
-  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const { copy } = useCopyToClipboard();
+// Blockchain Explorer URLs for Bitcoin addresses
+const BTC_EXPLORER_URL = (address: string) => `https://blockstream.info/address/${address}`;
 
-  const handleCopy = async (text: string, label: string = 'text') => {
-    console.log(`Attempting to copy ${label}:`, text.substring(0, 20) + '...');
-    
-    let success = false;
-    let verified = false;
-    
+const AddressModal = memo<AddressModalProps>(({ open, onClose, keyNumber, keyData }) => {
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+
+  const handleCopyAddress = async (address: string) => {
     try {
-      // Method 1: Try navigator.clipboard with verification
-      if (navigator.clipboard && window.isSecureContext) {
-        try {
-          await navigator.clipboard.writeText(text);
-          console.log('Navigator clipboard write completed');
-          
-          // VERIFY by reading back
-          try {
-            const clipboardContent = await navigator.clipboard.readText();
-            verified = clipboardContent === text;
-            console.log('Clipboard verification:', verified ? 'SUCCESS' : 'FAILED');
-            if (verified) {
-              success = true;
-            }
-          } catch (readErr) {
-            console.log('Cannot read clipboard to verify, will show fallback');
-            verified = false;
-          }
-        } catch (err) {
-          console.log('Navigator clipboard failed:', err);
-        }
-      }
-      
-      // Method 2: Use execCommand only if navigator failed
-      if (!success) {
-        try {
-          // Force focus outside modal
-          if (document.body) {
-            document.body.focus();
-            document.body.click();
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          const textArea = document.createElement('textarea');
-          textArea.value = text;
-          textArea.style.position = 'absolute';
-          textArea.style.left = '0';
-          textArea.style.top = '0';
-          textArea.style.width = '2em';
-          textArea.style.height = '2em';
-          textArea.style.padding = '0';
-          textArea.style.border = 'none';
-          textArea.style.outline = 'none';
-          textArea.style.boxShadow = 'none';
-          textArea.style.background = 'transparent';
-          textArea.style.zIndex = '99999';
-          
-          document.body.appendChild(textArea);
-          textArea.focus();
-          textArea.select();
-          textArea.setSelectionRange(0, text.length);
-          
-          const result = document.execCommand('copy');
-          console.log('ExecCommand result:', result);
-          
-          document.body.removeChild(textArea);
-          
-          // Even if execCommand says true, try to verify
-          if (result && navigator.clipboard) {
-            try {
-              await new Promise(resolve => setTimeout(resolve, 50));
-              const clipboardContent = await navigator.clipboard.readText();
-              verified = clipboardContent === text;
-              console.log('ExecCommand verification:', verified ? 'SUCCESS' : 'FAILED');
-            } catch (readErr) {
-              console.log('Cannot verify execCommand result');
-              verified = false;
-            }
-          } else {
-            // Can't verify, assume it might have failed
-            verified = false;
-          }
-          
-          success = result && verified;
-        } catch (err) {
-          console.log('ExecCommand method failed:', err);
-        }
-      }
-      
-      console.log('Final copy success:', success, 'Verified:', verified);
-      
-      // If we couldn't verify or it failed, ALWAYS show manual fallback
-      if (!success || !verified) {
-        console.log('Showing manual fallback because copy was not verified');
-        
-        // Simple prompt fallback - always works
-        setTimeout(() => {
-          const userChoice = confirm(`Clipboard is blocked. Click OK to show ${label} in a popup for easy copying, or Cancel to try the overlay.`);
-          
-          if (userChoice) {
-            // Use prompt - user can easily select all and copy
-            prompt(`Copy this ${label} (Ctrl+A then Ctrl+C):`, text);
-            setNotification({
-              message: `${label} shown in popup for copying`,
-              type: 'success'
-            });
-          } else {
-            // Show the overlay as backup
-            showManualOverlay();
-          }
-        }, 100);
-        
-        const showManualOverlay = () => {
-          // Create manual copy overlay with better event handling
-          const overlay = document.createElement('div');
-          overlay.style.position = 'fixed';
-          overlay.style.top = '0';
-          overlay.style.left = '0';
-          overlay.style.width = '100%';
-          overlay.style.height = '100%';
-          overlay.style.backgroundColor = 'rgba(0,0,0,0.9)';
-          overlay.style.zIndex = '999999';
-          overlay.style.display = 'flex';
-          overlay.style.justifyContent = 'center';
-          overlay.style.alignItems = 'center';
-          overlay.style.color = 'white';
-          overlay.style.fontFamily = 'monospace';
-          
-          const content = document.createElement('div');
-          content.style.backgroundColor = '#333';
-          content.style.padding = '30px';
-          content.style.borderRadius = '8px';
-          content.style.maxWidth = '90%';
-          content.style.textAlign = 'center';
-          
-          const title = document.createElement('h2');
-          title.textContent = `Copy ${label}`;
-          title.style.marginBottom = '20px';
-          title.style.color = '#fff';
-          
-          const instruction = document.createElement('p');
-          instruction.textContent = 'Manual copy needed. Use the buttons below:';
-          instruction.style.margin = '20px 0';
-          instruction.style.color = '#ccc';
-          instruction.style.fontSize = '16px';
-          
-          // Simple prompt button - most reliable
-          const promptBtn = document.createElement('button');
-          promptBtn.textContent = '📋 Show in Popup (Recommended)';
-          promptBtn.style.backgroundColor = '#28a745';
-          promptBtn.style.color = 'white';
-          promptBtn.style.border = 'none';
-          promptBtn.style.padding = '12px 20px';
-          promptBtn.style.borderRadius = '6px';
-          promptBtn.style.cursor = 'pointer';
-          promptBtn.style.fontSize = '16px';
-          promptBtn.style.margin = '10px';
-          promptBtn.style.display = 'block';
-          promptBtn.style.width = '100%';
-          
-          promptBtn.onclick = () => {
-            prompt(`Copy this ${label} (Ctrl+A then Ctrl+C):`, text);
-            document.body.removeChild(overlay);
-            setNotification({
-              message: `${label} shown in popup`,
-              type: 'success'
-            });
-          };
-          
-          // Alert button as alternative
-          const alertBtn = document.createElement('button');
-          alertBtn.textContent = '📄 Show in Alert';
-          alertBtn.style.backgroundColor = '#17a2b8';
-          alertBtn.style.color = 'white';
-          alertBtn.style.border = 'none';
-          alertBtn.style.padding = '12px 20px';
-          alertBtn.style.borderRadius = '6px';
-          alertBtn.style.cursor = 'pointer';
-          alertBtn.style.fontSize = '16px';
-          alertBtn.style.margin = '10px';
-          alertBtn.style.display = 'block';
-          alertBtn.style.width = '100%';
-          
-          alertBtn.onclick = () => {
-            alert(`${label}:\n\n${text}\n\nManually select and copy from above.`);
-            document.body.removeChild(overlay);
-            setNotification({
-              message: `${label} shown in alert`,
-              type: 'success'
-            });
-          };
-          
-          const closeBtn = document.createElement('button');
-          closeBtn.textContent = '❌ Close';
-          closeBtn.style.backgroundColor = '#dc3545';
-          closeBtn.style.color = 'white';
-          closeBtn.style.border = 'none';
-          closeBtn.style.padding = '12px 20px';
-          closeBtn.style.borderRadius = '6px';
-          closeBtn.style.cursor = 'pointer';
-          closeBtn.style.fontSize = '16px';
-          closeBtn.style.margin = '10px';
-          closeBtn.style.display = 'block';
-          closeBtn.style.width = '100%';
-          
-          closeBtn.onclick = () => {
-            document.body.removeChild(overlay);
-          };
-          
-          content.appendChild(title);
-          content.appendChild(instruction);
-          content.appendChild(promptBtn);
-          content.appendChild(alertBtn);
-          content.appendChild(closeBtn);
-          overlay.appendChild(content);
-          document.body.appendChild(overlay);
-        };
-        
-        return; // Exit early for manual copy
-      }
-      
-      // Success notification only if verified
-      setNotification({
-        message: `✅ ${label} copied successfully!`,
-        type: 'success'
-      });
-      
+      await navigator.clipboard.writeText(address);
+      setCopiedAddress(address);
+      setTimeout(() => setCopiedAddress(null), 2000);
     } catch (error) {
-      console.error('Copy error:', error);
-      setNotification({
-        message: `❌ Copy error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        type: 'error'
-      });
+      console.error('Failed to copy address:', error);
     }
   };
 
-  const handleExplore = (address: string) => {
-    const explorerUrl = `https://www.blockchain.com/explorer/addresses/btc/${address}`;
-    window.open(explorerUrl, '_blank', 'noopener,noreferrer');
+  const handleCopyPrivateKey = async () => {
+    try {
+      await navigator.clipboard.writeText(keyData.privateKey);
+      setCopiedAddress('privateKey');
+      setTimeout(() => setCopiedAddress(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy private key:', error);
+    }
   };
 
-  if (!keyData) return null;
+  // Check if this is legacy Bitcoin-only data structure
+  const isLegacyData = (data: any): data is LegacyKeyData => {
+    return data.addresses && typeof data.addresses.p2pkh_compressed === 'string';
+  };
 
-  const addressTypes = [
-    { label: 'P2PKH (Compressed)', value: keyData.addresses.p2pkh_compressed, type: 'p2pkh_compressed', balance: (keyData as any).balances?.p2pkh_compressed || 0 },
-    { label: 'P2PKH (Uncompressed)', value: keyData.addresses.p2pkh_uncompressed, type: 'p2pkh_uncompressed', balance: (keyData as any).balances?.p2pkh_uncompressed || 0 },
-    { label: 'P2WPKH', value: keyData.addresses.p2wpkh, type: 'p2wpkh', balance: (keyData as any).balances?.p2wpkh || 0 },
-    { label: 'P2SH-P2WPKH', value: keyData.addresses.p2sh_p2wpkh, type: 'p2sh_p2wpkh', balance: (keyData as any).balances?.p2sh_p2wpkh || 0 },
-    { label: 'P2TR', value: keyData.addresses.p2tr, type: 'p2tr', balance: (keyData as any).balances?.p2tr || 0 },
-  ];
+  const renderLegacyBitcoinAddresses = (data: LegacyKeyData) => {
+    const addressTypes = [
+      { label: 'P2PKH (Compressed)', value: data.addresses.p2pkh_compressed, type: 'p2pkh_compressed', balance: data.balances?.p2pkh_compressed || 0 },
+      { label: 'P2PKH (Uncompressed)', value: data.addresses.p2pkh_uncompressed, type: 'p2pkh_uncompressed', balance: data.balances?.p2pkh_uncompressed || 0 },
+      { label: 'P2WPKH', value: data.addresses.p2wpkh, type: 'p2wpkh', balance: data.balances?.p2wpkh || 0 },
+      { label: 'P2SH-P2WPKH', value: data.addresses.p2sh_p2wpkh, type: 'p2sh_p2wpkh', balance: data.balances?.p2sh_p2wpkh || 0 },
+      { label: 'P2TR', value: data.addresses.p2tr, type: 'p2tr', balance: data.balances?.p2tr || 0 },
+    ];
 
-  return (
-    <>
-      <Dialog 
-        open={open} 
-        onClose={onClose}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h6">Key {keyNumber} - Wallet Addresses</Typography>
-            <IconButton onClick={onClose} size="small">
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        
-        <DialogContent>
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-              Private Key:
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 2, bgcolor: 'action.hover', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-              <KeyIcon sx={{ fontSize: '1rem', color: '#FFD700' }} />
-              <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.8rem', wordBreak: 'break-all', flex: 1, color: 'text.primary' }}>
-                {keyData.privateKey}
-              </Typography>
-              <Tooltip title="Copy Private Key" arrow>
-                <IconButton
-                  size="small"
-                  onClick={() => handleCopy(keyData.privateKey, 'Private Key')}
-                  color="primary"
-                >
-                  <ContentCopyIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          </Box>
-
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
-            Bitcoin Addresses:
-          </Typography>
-
-          <TableContainer component={Paper} variant="outlined">
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Address Type</TableCell>
-                  <TableCell>Address</TableCell>
-                  <TableCell align="center">Balance</TableCell>
-                  <TableCell align="center">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {addressTypes.map((address) => (
-                  <TableRow 
-                    key={address.type} 
-                    hover
-                    sx={{
-                      bgcolor: address.balance > 0 ? 'success.main' : 'transparent',
-                      border: address.balance > 0 ? '2px solid' : 'none',
-                      borderColor: 'success.light',
-                      '&:hover': {
-                        bgcolor: address.balance > 0 ? 'success.dark' : 'action.hover',
-                      }
+    return (
+      <>
+        <TableHead>
+          <TableRow>
+            <TableCell sx={{ fontWeight: 'bold' }}>Currency</TableCell>
+            <TableCell sx={{ fontWeight: 'bold' }}>Type</TableCell>
+            <TableCell sx={{ fontWeight: 'bold' }}>Address</TableCell>
+            <TableCell sx={{ fontWeight: 'bold' }}>Balance</TableCell>
+            <TableCell sx={{ fontWeight: 'bold' }}>Actions</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {addressTypes.map((address, index) => {
+            const hasBalance = address.balance > 0;
+            const isFirstRow = index === 0;
+            
+            return (
+              <TableRow 
+                key={address.type}
+                sx={{ 
+                  bgcolor: hasBalance ? 'rgba(76, 175, 80, 0.1)' : 'transparent',
+                  '&:hover': { bgcolor: hasBalance ? 'rgba(76, 175, 80, 0.2)' : 'rgba(255,255,255,0.05)' }
+                }}
+              >
+                {/* Currency column - only show for first address */}
+                <TableCell sx={{ borderRight: isFirstRow ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+                  {isFirstRow && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontSize: '1.2rem' }}>
+                        🟠
+                      </Typography>
+                      <Box>
+                        <Typography variant="body2" fontWeight="bold">
+                          Bitcoin
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          BTC
+                        </Typography>
+                        {data.totalBalance && data.totalBalance > 0 && (
+                          <Chip 
+                            label="💰 FUNDED" 
+                            size="small" 
+                            color="success"
+                            sx={{ ml: 0.5, fontSize: '0.6rem', height: 16 }}
+                          />
+                        )}
+                      </Box>
+                    </Box>
+                  )}
+                </TableCell>
+                
+                {/* Address Type */}
+                <TableCell>
+                  <Typography variant="body2" sx={{ fontWeight: hasBalance ? 'bold' : 'normal' }}>
+                    {address.label}
+                  </Typography>
+                </TableCell>
+                
+                {/* Address */}
+                <TableCell>
+                  <Typography 
+                    variant="body2" 
+                    fontFamily="monospace" 
+                    sx={{ 
+                      fontSize: '0.75rem',
+                      wordBreak: 'break-all',
+                      maxWidth: '300px',
+                      color: hasBalance ? 'success.main' : 'text.primary'
                     }}
                   >
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" fontWeight="medium">
-                          {address.label}
-                        </Typography>
-                        {address.balance > 0 && (
-                          <Chip 
-                            label="💰 FUNDED!" 
-                            size="small" 
-                            color="success" 
-                            sx={{ 
-                              fontWeight: 'bold',
-                              animation: 'pulse 2s infinite'
-                            }} 
-                          />
-                        )}
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>
-                        {address.value}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="center">
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                        <Typography variant="body2" fontFamily="monospace" fontWeight={address.balance > 0 ? 'bold' : 'normal'}>
-                          {address.balance.toFixed(8)} BTC
-                        </Typography>
-                        {address.balance > 0 && (
-                          <Chip 
-                            label="💰" 
-                            size="small" 
-                            color="success" 
-                            sx={{ minWidth: 24, height: 20 }}
-                          />
-                        )}
-                      </Box>
-                    </TableCell>
-                    <TableCell align="center">
-                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                        <Tooltip title="Copy address" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleCopy(address.value, address.label)}
-                            color="primary"
-                          >
-                            <ContentCopyIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Explore on blockchain.com" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleExplore(address.value)}
-                            color="secondary"
-                          >
-                            <OpenInNewIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </DialogContent>
-        
-        <DialogActions>
-          <Button onClick={onClose} variant="contained">
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
+                    {address.value}
+                  </Typography>
+                </TableCell>
+                
+                {/* Balance */}
+                <TableCell>
+                  {hasBalance ? (
+                    <Chip 
+                      label={`💰 ${address.balance.toFixed(8)} BTC`}
+                      color="success"
+                      size="small"
+                      sx={{ fontFamily: 'monospace' }}
+                    />
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                      0.00000000 BTC
+                    </Typography>
+                  )}
+                </TableCell>
+                
+                {/* Actions */}
+                <TableCell>
+                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                    <Tooltip title="Copy Address">
+                      <IconButton 
+                        size="small" 
+                        onClick={() => handleCopyAddress(address.value)}
+                        color={copiedAddress === address.value ? 'success' : 'default'}
+                      >
+                        <CopyIcon sx={{ fontSize: '1rem' }} />
+                      </IconButton>
+                    </Tooltip>
+                    
+                    <Tooltip title="View on Explorer">
+                      <IconButton 
+                        size="small"
+                        component={Link}
+                        href={BTC_EXPLORER_URL(address.value)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{ color: 'primary.main' }}
+                      >
+                        <ExternalLinkIcon sx={{ fontSize: '1rem' }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </>
+    );
+  };
 
-      {/* Notification Snackbar */}
-      <Snackbar
-        open={!!notification}
-        autoHideDuration={3000}
-        onClose={() => setNotification(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert 
-          severity={notification?.type}
-          onClose={() => setNotification(null)}
-        >
-          {notification?.message}
-        </Alert>
-      </Snackbar>
-    </>
+  // Calculate stats for legacy data
+  const totalAddresses = isLegacyData(keyData) ? 5 : 21;
+  const totalFunded = isLegacyData(keyData) ? (keyData.totalBalance && keyData.totalBalance > 0 ? 1 : 0) : 0;
+
+  return (
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      maxWidth="lg" 
+      fullWidth
+      PaperProps={{
+        sx: { 
+          height: '90vh',
+          bgcolor: 'background.paper'
+        }
+      }}
+    >
+      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+        <Box>
+          <Typography variant="h6">
+            🔑 Key {keyNumber} - {isLegacyData(keyData) ? 'Bitcoin' : 'All Cryptocurrency'} Addresses
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {totalAddresses} addresses {isLegacyData(keyData) ? 'for Bitcoin' : 'across 8 cryptocurrencies'}
+            {totalFunded > 0 && (
+              <Chip 
+                label={`💰 ${totalFunded} funded currency${totalFunded > 1 ? 's' : ''}`} 
+                size="small" 
+                color="success" 
+                sx={{ ml: 1 }}
+              />
+            )}
+          </Typography>
+        </Box>
+        <IconButton onClick={onClose} size="small">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+
+      <DialogContent sx={{ pt: 1 }}>
+        {/* Private Key Section */}
+        <Box sx={{ mb: 3, p: 2, bgcolor: 'rgba(255, 193, 7, 0.1)', borderRadius: 1, border: '1px solid rgba(255, 193, 7, 0.3)' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <KeyIcon sx={{ color: '#FFD700' }} />
+            <Typography variant="subtitle2">Private Key:</Typography>
+            <Button
+              size="small"
+              startIcon={<CopyIcon />}
+              onClick={handleCopyPrivateKey}
+              variant="outlined"
+              color="warning"
+            >
+              {copiedAddress === 'privateKey' ? 'Copied!' : 'Copy'}
+            </Button>
+          </Box>
+          <Typography 
+            variant="body2" 
+            fontFamily="monospace" 
+            sx={{ 
+              wordBreak: 'break-all', 
+              bgcolor: 'rgba(0,0,0,0.2)', 
+              p: 1, 
+              borderRadius: 1,
+              fontSize: '0.8rem'
+            }}
+          >
+            {keyData.privateKey}
+          </Typography>
+        </Box>
+
+        {/* Address Table */}
+        <TableContainer component={Paper} sx={{ bgcolor: 'background.default' }}>
+          <Table size="small" stickyHeader>
+            {isLegacyData(keyData) && renderLegacyBitcoinAddresses(keyData)}
+          </Table>
+        </TableContainer>
+
+        {/* Summary Section */}
+        <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(255,255,255,0.02)', borderRadius: 1 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>Summary:</Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 1 }}>
+            <Typography variant="body2">
+              🔑 Total Addresses: <strong>{totalAddresses}</strong>
+            </Typography>
+            <Typography variant="body2">
+              💰 Funded Currencies: <strong>{totalFunded}</strong>
+            </Typography>
+            <Typography variant="body2">
+              🌐 Supported Cryptos: <strong>{isLegacyData(keyData) ? '1 (Bitcoin)' : '8'}</strong>
+            </Typography>
+            <Typography variant="body2">
+              🔍 Explorer Links: <strong>Available</strong>
+            </Typography>
+          </Box>
+        </Box>
+      </DialogContent>
+    </Dialog>
   );
-};
+});
+
+AddressModal.displayName = 'AddressModal';
 
 export default AddressModal; 

@@ -1,12 +1,10 @@
 import React, { memo, useState, useEffect } from 'react';
-import { Card, Typography, IconButton, Chip, Box, Button, Collapse, CircularProgress } from '@mui/material';
+import { Card, Typography, IconButton, Chip, Box, Button, Collapse, CircularProgress, Divider } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Visibility as VisibilityIcon,
   AccountBalance as BalanceIcon,
-  Add as AddIcon,
-  Remove as RemoveIcon,
   Key as KeyIcon
 } from '@mui/icons-material';
 import AddressModal from './AddressModal';
@@ -61,7 +59,7 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
     const timer = setTimeout(() => {
       setIsLoaded(true);
       console.log(`🔄 LazyKeyCard ${index} finished loading`);
-    }, 50); // Small delay to prevent blocking
+    }, 50);
 
     return () => clearTimeout(timer);
   }, [isVisible, index]);
@@ -92,7 +90,7 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
         data-key-index={index}
         sx={{ 
           p: 2, 
-          height: 120,
+          height: 180,
           background: 'rgba(255,255,255,0.02)',
           border: '1px dashed rgba(255,255,255,0.1)'
         }}
@@ -114,7 +112,7 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
         data-key-index={index}
         sx={{ 
           p: 2, 
-          height: 120,
+          height: 180,
           background: 'rgba(255,255,255,0.02)',
           border: '1px dashed rgba(255,255,255,0.1)'
         }}
@@ -128,8 +126,8 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
     );
   }
 
-  // Calculate the absolute keyspace index (1-based)
   const keyNumber = (currentKeysPage - 1) * keysPerPage + keyData.index + 1;
+  const hasFunds = keyData.totalBalance > 0;
   
   return (
     <>
@@ -141,6 +139,9 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
           p: 2, 
           cursor: 'pointer',
           transition: 'all 0.1s',
+          border: hasFunds ? '2px solid' : '1px solid',
+          borderColor: hasFunds ? 'success.main' : 'divider',
+          background: hasFunds ? 'rgba(76, 175, 80, 0.05)' : 'transparent',
           '&:hover': { transform: 'translateY(-1px)', boxShadow: 1 }
         }}
         onClick={onToggleExpansion}
@@ -149,9 +150,19 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
           <Typography variant="subtitle2" color="text.secondary">
             Key {keyNumber}
           </Typography>
-          <IconButton size="small">
-            {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-          </IconButton>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {hasFunds && (
+              <Chip 
+                label="💰 BITCOIN FUNDED!" 
+                color="success" 
+                size="small"
+                sx={{ animation: 'pulse 2s infinite' }}
+              />
+            )}
+            <IconButton size="small">
+              {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          </Box>
         </Box>
         
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -161,81 +172,80 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
           </Typography>
         </Box>
         
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <BalanceIcon sx={{ fontSize: '0.8rem', color: 'text.secondary' }} />
-            <Typography variant="caption" color="text.secondary">
-              {keyData.totalBalance.toFixed(8)} BTC
-            </Typography>
-          </Box>
-          {keyData.totalBalance > 0 && (
-            <Chip 
-              label="FUNDS!" 
-              color="success" 
-              size="small"
-              sx={{ animation: 'pulse 2s infinite' }}
-            />
-          )}
-        </Box>
-
-        {/* Balance Breakdown */}
+        {/* Bitcoin Balance Summary */}
         <Box sx={{ mb: 1 }}>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-            Balance Breakdown:
+            🟠 Bitcoin Balance Breakdown (5 address types):
           </Typography>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+          
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <BalanceIcon sx={{ fontSize: '0.8rem', color: 'text.secondary' }} />
+            <Typography variant="caption" color="text.secondary">
+              Total: {keyData.totalBalance.toFixed(8)} BTC
+            </Typography>
+            {hasFunds && (
+              <Chip 
+                label="💰 FUNDED!" 
+                color="success" 
+                size="small"
+                sx={{ fontSize: '0.6rem', height: 16 }}
+              />
+            )}
+          </Box>
+          
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 0.25 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary">P2PKH (Compressed):</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>P2PKH (Compressed):</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" fontFamily="monospace">
+                <Typography variant="caption" fontFamily="monospace" sx={{ fontSize: '0.65rem' }}>
                   {keyData.balances.p2pkh_compressed.toFixed(8)}
                 </Typography>
                 {keyData.balances.p2pkh_compressed > 0 && (
-                  <Chip label="💰" size="small" color="success" sx={{ minWidth: 24, height: 16, fontSize: '0.6rem' }} />
+                  <Chip label="💰" size="small" color="success" sx={{ minWidth: 20, height: 14, fontSize: '0.5rem' }} />
                 )}
               </Box>
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary">P2PKH (Uncompressed):</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>P2PKH (Uncompressed):</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" fontFamily="monospace">
+                <Typography variant="caption" fontFamily="monospace" sx={{ fontSize: '0.65rem' }}>
                   {keyData.balances.p2pkh_uncompressed.toFixed(8)}
                 </Typography>
                 {keyData.balances.p2pkh_uncompressed > 0 && (
-                  <Chip label="💰" size="small" color="success" sx={{ minWidth: 24, height: 16, fontSize: '0.6rem' }} />
+                  <Chip label="💰" size="small" color="success" sx={{ minWidth: 20, height: 14, fontSize: '0.5rem' }} />
                 )}
               </Box>
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary">P2WPKH:</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>P2WPKH:</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" fontFamily="monospace">
+                <Typography variant="caption" fontFamily="monospace" sx={{ fontSize: '0.65rem' }}>
                   {keyData.balances.p2wpkh.toFixed(8)}
                 </Typography>
                 {keyData.balances.p2wpkh > 0 && (
-                  <Chip label="💰" size="small" color="success" sx={{ minWidth: 24, height: 16, fontSize: '0.6rem' }} />
+                  <Chip label="💰" size="small" color="success" sx={{ minWidth: 20, height: 14, fontSize: '0.5rem' }} />
                 )}
               </Box>
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary">P2SH-P2WPKH:</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>P2SH-P2WPKH:</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" fontFamily="monospace">
+                <Typography variant="caption" fontFamily="monospace" sx={{ fontSize: '0.65rem' }}>
                   {keyData.balances.p2sh_p2wpkh.toFixed(8)}
                 </Typography>
                 {keyData.balances.p2sh_p2wpkh > 0 && (
-                  <Chip label="💰" size="small" color="success" sx={{ minWidth: 24, height: 16, fontSize: '0.6rem' }} />
+                  <Chip label="💰" size="small" color="success" sx={{ minWidth: 20, height: 14, fontSize: '0.5rem' }} />
                 )}
               </Box>
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary">P2TR:</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>P2TR:</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" fontFamily="monospace">
+                <Typography variant="caption" fontFamily="monospace" sx={{ fontSize: '0.65rem' }}>
                   {keyData.balances.p2tr.toFixed(8)}
                 </Typography>
                 {keyData.balances.p2tr > 0 && (
-                  <Chip label="💰" size="small" color="success" sx={{ minWidth: 24, height: 16, fontSize: '0.6rem' }} />
+                  <Chip label="💰" size="small" color="success" sx={{ minWidth: 20, height: 14, fontSize: '0.5rem' }} />
                 )}
               </Box>
             </Box>
@@ -251,11 +261,12 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
             setModalOpen(true);
           }}
           fullWidth
+          sx={{ mb: 1 }}
         >
-          View Addresses
+          View Bitcoin Addresses
         </Button>
 
-        {/* Expanded Content */}
+        {/* Expanded Content - Bitcoin Addresses */}
         <Collapse in={isExpanded} timeout="auto" unmountOnExit>
           <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
             {isLoadingAddresses ? (
@@ -267,23 +278,44 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
               </Box>
             ) : areAddressesLoaded ? (
               <>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>Addresses:</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <Typography variant="subtitle2">🟠 Bitcoin Addresses:</Typography>
+                  {hasFunds && (
+                    <Chip 
+                      label="💰 FUNDED" 
+                      size="small" 
+                      color="success"
+                      sx={{ fontSize: '0.6rem' }}
+                    />
+                  )}
+                </Box>
                 
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                   <Box sx={{ 
                     p: 1, 
                     borderRadius: 1, 
-                    bgcolor: keyData.balances.p2pkh_compressed > 0 ? 'success.main' : 'transparent',
-                    border: keyData.balances.p2pkh_compressed > 0 ? '1px solid' : 'none',
-                    borderColor: 'success.main' 
+                    bgcolor: keyData.balances.p2pkh_compressed > 0 ? 'success.main' : 'rgba(255,255,255,0.03)',
+                    border: keyData.balances.p2pkh_compressed > 0 ? '1px solid' : '1px solid rgba(255,255,255,0.1)',
+                    borderColor: keyData.balances.p2pkh_compressed > 0 ? 'success.main' : 'rgba(255,255,255,0.1)'
                   }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                      <Typography variant="caption" color="text.secondary">P2PKH (Compressed):</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                        P2PKH (Compressed):
+                      </Typography>
                       {keyData.balances.p2pkh_compressed > 0 && (
-                        <Chip label={`💰 ${keyData.balances.p2pkh_compressed.toFixed(8)} BTC`} size="small" color="success" />
+                        <Chip 
+                          label={`💰 ${keyData.balances.p2pkh_compressed.toFixed(8)} BTC`} 
+                          size="small" 
+                          color="success"
+                          sx={{ fontSize: '0.5rem', height: 16 }}
+                        />
                       )}
                     </Box>
-                    <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.7rem', wordBreak: 'break-all' }}>
+                    <Typography 
+                      variant="body2" 
+                      fontFamily="monospace" 
+                      sx={{ fontSize: '0.65rem', wordBreak: 'break-all', opacity: 0.8 }}
+                    >
                       {keyData.addresses.p2pkh_compressed}
                     </Typography>
                   </Box>
@@ -291,17 +323,28 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
                   <Box sx={{ 
                     p: 1, 
                     borderRadius: 1, 
-                    bgcolor: keyData.balances.p2pkh_uncompressed > 0 ? 'success.main' : 'transparent',
-                    border: keyData.balances.p2pkh_uncompressed > 0 ? '1px solid' : 'none',
-                    borderColor: 'success.main' 
+                    bgcolor: keyData.balances.p2pkh_uncompressed > 0 ? 'success.main' : 'rgba(255,255,255,0.03)',
+                    border: keyData.balances.p2pkh_uncompressed > 0 ? '1px solid' : '1px solid rgba(255,255,255,0.1)',
+                    borderColor: keyData.balances.p2pkh_uncompressed > 0 ? 'success.main' : 'rgba(255,255,255,0.1)'
                   }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                      <Typography variant="caption" color="text.secondary">P2PKH (Uncompressed):</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                        P2PKH (Uncompressed):
+                      </Typography>
                       {keyData.balances.p2pkh_uncompressed > 0 && (
-                        <Chip label={`💰 ${keyData.balances.p2pkh_uncompressed.toFixed(8)} BTC`} size="small" color="success" />
+                        <Chip 
+                          label={`💰 ${keyData.balances.p2pkh_uncompressed.toFixed(8)} BTC`} 
+                          size="small" 
+                          color="success"
+                          sx={{ fontSize: '0.5rem', height: 16 }}
+                        />
                       )}
                     </Box>
-                    <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.7rem', wordBreak: 'break-all' }}>
+                    <Typography 
+                      variant="body2" 
+                      fontFamily="monospace" 
+                      sx={{ fontSize: '0.65rem', wordBreak: 'break-all', opacity: 0.8 }}
+                    >
                       {keyData.addresses.p2pkh_uncompressed}
                     </Typography>
                   </Box>
@@ -309,17 +352,28 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
                   <Box sx={{ 
                     p: 1, 
                     borderRadius: 1, 
-                    bgcolor: keyData.balances.p2wpkh > 0 ? 'success.main' : 'transparent',
-                    border: keyData.balances.p2wpkh > 0 ? '1px solid' : 'none',
-                    borderColor: 'success.main' 
+                    bgcolor: keyData.balances.p2wpkh > 0 ? 'success.main' : 'rgba(255,255,255,0.03)',
+                    border: keyData.balances.p2wpkh > 0 ? '1px solid' : '1px solid rgba(255,255,255,0.1)',
+                    borderColor: keyData.balances.p2wpkh > 0 ? 'success.main' : 'rgba(255,255,255,0.1)'
                   }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                      <Typography variant="caption" color="text.secondary">P2WPKH:</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                        P2WPKH:
+                      </Typography>
                       {keyData.balances.p2wpkh > 0 && (
-                        <Chip label={`💰 ${keyData.balances.p2wpkh.toFixed(8)} BTC`} size="small" color="success" />
+                        <Chip 
+                          label={`💰 ${keyData.balances.p2wpkh.toFixed(8)} BTC`} 
+                          size="small" 
+                          color="success"
+                          sx={{ fontSize: '0.5rem', height: 16 }}
+                        />
                       )}
                     </Box>
-                    <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.7rem', wordBreak: 'break-all' }}>
+                    <Typography 
+                      variant="body2" 
+                      fontFamily="monospace" 
+                      sx={{ fontSize: '0.65rem', wordBreak: 'break-all', opacity: 0.8 }}
+                    >
                       {keyData.addresses.p2wpkh}
                     </Typography>
                   </Box>
@@ -327,17 +381,28 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
                   <Box sx={{ 
                     p: 1, 
                     borderRadius: 1, 
-                    bgcolor: keyData.balances.p2sh_p2wpkh > 0 ? 'success.main' : 'transparent',
-                    border: keyData.balances.p2sh_p2wpkh > 0 ? '1px solid' : 'none',
-                    borderColor: 'success.main' 
+                    bgcolor: keyData.balances.p2sh_p2wpkh > 0 ? 'success.main' : 'rgba(255,255,255,0.03)',
+                    border: keyData.balances.p2sh_p2wpkh > 0 ? '1px solid' : '1px solid rgba(255,255,255,0.1)',
+                    borderColor: keyData.balances.p2sh_p2wpkh > 0 ? 'success.main' : 'rgba(255,255,255,0.1)'
                   }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                      <Typography variant="caption" color="text.secondary">P2SH-P2WPKH:</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                        P2SH-P2WPKH:
+                      </Typography>
                       {keyData.balances.p2sh_p2wpkh > 0 && (
-                        <Chip label={`💰 ${keyData.balances.p2sh_p2wpkh.toFixed(8)} BTC`} size="small" color="success" />
+                        <Chip 
+                          label={`💰 ${keyData.balances.p2sh_p2wpkh.toFixed(8)} BTC`} 
+                          size="small" 
+                          color="success"
+                          sx={{ fontSize: '0.5rem', height: 16 }}
+                        />
                       )}
                     </Box>
-                    <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.7rem', wordBreak: 'break-all' }}>
+                    <Typography 
+                      variant="body2" 
+                      fontFamily="monospace" 
+                      sx={{ fontSize: '0.65rem', wordBreak: 'break-all', opacity: 0.8 }}
+                    >
                       {keyData.addresses.p2sh_p2wpkh}
                     </Typography>
                   </Box>
@@ -345,17 +410,28 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
                   <Box sx={{ 
                     p: 1, 
                     borderRadius: 1, 
-                    bgcolor: keyData.balances.p2tr > 0 ? 'success.main' : 'transparent',
-                    border: keyData.balances.p2tr > 0 ? '1px solid' : 'none',
-                    borderColor: 'success.main' 
+                    bgcolor: keyData.balances.p2tr > 0 ? 'success.main' : 'rgba(255,255,255,0.03)',
+                    border: keyData.balances.p2tr > 0 ? '1px solid' : '1px solid rgba(255,255,255,0.1)',
+                    borderColor: keyData.balances.p2tr > 0 ? 'success.main' : 'rgba(255,255,255,0.1)'
                   }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                      <Typography variant="caption" color="text.secondary">P2TR:</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                        P2TR:
+                      </Typography>
                       {keyData.balances.p2tr > 0 && (
-                        <Chip label={`💰 ${keyData.balances.p2tr.toFixed(8)} BTC`} size="small" color="success" />
+                        <Chip 
+                          label={`💰 ${keyData.balances.p2tr.toFixed(8)} BTC`} 
+                          size="small" 
+                          color="success"
+                          sx={{ fontSize: '0.5rem', height: 16 }}
+                        />
                       )}
                     </Box>
-                    <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.7rem', wordBreak: 'break-all' }}>
+                    <Typography 
+                      variant="body2" 
+                      fontFamily="monospace" 
+                      sx={{ fontSize: '0.65rem', wordBreak: 'break-all', opacity: 0.8 }}
+                    >
                       {keyData.addresses.p2tr}
                     </Typography>
                   </Box>

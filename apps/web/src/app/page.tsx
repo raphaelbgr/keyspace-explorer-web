@@ -101,7 +101,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [scanProgress, setScanProgress] = useState(0);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [apiSource, setApiSource] = useState<string>('local');
+  const [apiSource, setApiSource] = useState<string>('external');
   const [expandedKeys, setExpandedKeys] = useState<Set<number>>(new Set());
   const [displayMode, setDisplayMode] = useState<'grid' | 'table'>('table');
   const [keysPerPage, setKeysPerPage] = useState(45);
@@ -163,118 +163,6 @@ export default function Dashboard() {
     });
   }, []), 16);
 
-  const handleGeneratePage = async (pageNumber?: string) => {
-    const pageToGenerate = pageNumber || currentPage;
-    setLoading(true);
-    setError(null);
-    
-    try {
-      let data;
-      
-      if (generateLocally) {
-        // Client-side generation
-        console.log('🚀 Using client-side generation');
-        const pageBigInt = safeToBigInt(pageToGenerate);
-        data = await clientKeyGenerationService.generatePage(pageBigInt, navKeysPerPage);
-        
-        // Convert to the same format as API response
-        const serializedData = {
-          pageNumber: data.pageNumber.toString(),
-          keys: data.keys.map(key => ({
-            privateKey: key.privateKey,
-            pageNumber: key.pageNumber.toString(),
-            index: key.index,
-            addresses: key.addresses,
-            balances: key.balances,
-            totalBalance: key.totalBalance,
-          })),
-          totalPageBalance: data.totalPageBalance,
-          generatedAt: data.generatedAt.toISOString(),
-          balancesFetched: data.balancesFetched,
-        };
-        data = serializedData;
-      } else {
-        // Server-side generation (existing API call)
-        console.log('🌐 Using server-side generation');
-        const response = await fetch('/api/generate-page', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            pageNumber: pageToGenerate,
-            keysPerPage: navKeysPerPage 
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to generate page');
-        }
-
-        data = await response.json();
-      }
-
-      setPageData(data);
-      setCurrentPage(pageToGenerate);
-      
-      // Check balances after page generation
-      if (data) {
-        try {
-          const balanceData = await fetch('/api/balances', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              addresses: data.keys.flatMap((key: any) => [
-                key.addresses.p2pkh_compressed,
-                key.addresses.p2pkh_uncompressed,
-                key.addresses.p2wpkh,
-                key.addresses.p2sh_p2wpkh,
-                key.addresses.p2tr
-              ])
-            }),
-          });
-          
-          if (balanceData.ok) {
-            const balances = await balanceData.json();
-            // Update page data with balances
-            const updatedData = { ...data };
-            updatedData.keys = data.keys.map((key: any) => {
-              const keyBalances = {
-                p2pkh_compressed: balances[key.addresses.p2pkh_compressed] || 0,
-                p2pkh_uncompressed: balances[key.addresses.p2pkh_uncompressed] || 0,
-                p2wpkh: balances[key.addresses.p2wpkh] || 0,
-                p2sh_p2wpkh: balances[key.addresses.p2sh_p2wpkh] || 0,
-                p2tr: balances[key.addresses.p2tr] || 0,
-              };
-              const total = Object.values(keyBalances).reduce((sum: number, balance: number) => sum + balance, 0);
-              return {
-                ...key,
-                balances: keyBalances,
-                totalBalance: total
-              };
-            });
-            updatedData.totalPageBalance = updatedData.keys.reduce((sum: number, key: any) => sum + key.totalBalance, 0);
-            setPageData(updatedData);
-          }
-        } catch (balanceError) {
-          console.warn('Failed to fetch balances:', balanceError);
-        }
-      }
-      
-      setNotification({ 
-        message: formatTranslation(t.pageGenerated, { page: pageToGenerate }) + 
-                (generateLocally ? ' ⚡ (Client-side)' : ' 🌐 (Server-side)'), 
-        type: 'success' 
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      setNotification({ 
-        message: t.failedToGenerate + (generateLocally ? ' (Client-side)' : ' (Server-side)'), 
-        type: 'error' 
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Helper function to safely convert to BigInt (handles scientific notation)
   const safeToBigInt = (value: string | number): bigint => {
     try {
@@ -297,6 +185,230 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Failed to convert to BigInt:', value, error);
       return BigInt(1); // Fallback to page 1
+    }
+  };
+
+  const handleGeneratePage = async (pageNumber?: string) => {
+    const pageToGenerate = pageNumber || currentPage;
+    setLoading(true);
+    setError(null);
+    
+    try {
+      let data;
+      
+      // Force server-side generation for multi-currency support
+      // Client-side generation only supports Bitcoin addresses
+      const useMultiCurrency = true; // Always enable multi-currency
+      
+      if (generateLocally && !useMultiCurrency) {
+        // Client-side generation (Bitcoin only)
+        console.log('🚀 Using client-side generation (Bitcoin only)');
+        const pageBigInt = safeToBigInt(pageToGenerate);
+        data = await clientKeyGenerationService.generatePage(pageBigInt, navKeysPerPage);
+        
+        // Convert to the same format as API response
+        const serializedData = {
+          pageNumber: data.pageNumber.toString(),
+          keys: data.keys.map(key => ({
+            privateKey: key.privateKey,
+            pageNumber: key.pageNumber.toString(),
+            index: key.index,
+            addresses: key.addresses,
+            balances: key.balances,
+            totalBalance: key.totalBalance,
+          })),
+          totalPageBalance: data.totalPageBalance,
+          generatedAt: data.generatedAt.toISOString(),
+          balancesFetched: data.balancesFetched,
+        };
+        data = serializedData;
+      } else {
+        // Server-side generation with multi-currency support
+        console.log('🌐 Using server-side generation (Multi-currency)');
+        const response = await fetch('/api/generate-page', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            pageNumber: pageToGenerate,
+            keysPerPage: navKeysPerPage,
+            multiCurrency: true  // Enable multi-currency generation
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to generate page');
+        }
+
+        data = await response.json();
+      }
+
+      setPageData(data);
+      setCurrentPage(pageToGenerate);
+      
+      // Check balances after page generation
+      if (data && data.keys && data.keys.length > 0) {
+        console.log('🔍 Starting balance check for generated page');
+        
+        try {
+          if (data.multiCurrency) {
+            console.log('📊 Processing multi-currency format');
+            
+            // Group addresses by currency
+            const addressesByCurrency: Record<string, string[]> = {};
+            
+            data.keys.forEach((key: any) => {
+              if (key.addresses) {
+                Object.entries(key.addresses).forEach(([currency, currencyAddresses]: [string, any]) => {
+                  if (!addressesByCurrency[currency]) {
+                    addressesByCurrency[currency] = [];
+                  }
+                  if (typeof currencyAddresses === 'object') {
+                    Object.values(currencyAddresses).forEach((addr: any) => {
+                      if (typeof addr === 'string' && addr.length > 0) {
+                        addressesByCurrency[currency].push(addr);
+                      }
+                    });
+                  }
+                });
+              }
+            });
+            
+            console.log('📊 Addresses by currency:', Object.keys(addressesByCurrency).map(c => `${c}: ${addressesByCurrency[c].length}`));
+              
+            // Make separate API calls for each currency with its specific addresses
+            const balancePromises = Object.entries(addressesByCurrency).map(async ([currency, currencyAddresses]) => {
+              console.log(`🔍 Checking ${currency} balances for ${currencyAddresses.length} addresses`);
+              const response = await fetch('/api/balances', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  addresses: currencyAddresses,
+                  currencies: [currency],
+                  forceLocal: apiSource === 'local'  // Use dynamic API source setting
+                }),
+              });
+              return { currency, response };
+            });
+            
+            const balanceResponses = await Promise.all(balancePromises);
+            const allBalances: any = {};
+            
+            // Aggregate all balance data
+            for (const { currency, response } of balanceResponses) {
+              if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.balances) {
+                  Object.entries(data.balances).forEach(([address, balanceData]: [string, any]) => {
+                    if (!allBalances[address]) {
+                      allBalances[address] = {};
+                    }
+                    allBalances[address][currency] = balanceData[currency];
+                  });
+                }
+              }
+            }
+            
+            console.log('✅ Multi-currency balance check successful:', allBalances);
+            
+            // Update page data with balances
+            const updatedData = { ...data };
+            updatedData.keys = updatedData.keys.map((key: any) => {
+              const keyBalances: any = {};
+              
+              // For each currency and address type, check if we have balance data
+              Object.entries(key.addresses).forEach(([currency, addresses]: [string, any]) => {
+                keyBalances[currency] = {};
+                Object.entries(addresses).forEach(([addrType, address]: [string, any]) => {
+                  if (allBalances[address] && allBalances[address][currency]) {
+                    keyBalances[currency][addrType] = allBalances[address][currency];
+                  } else {
+                    keyBalances[currency][addrType] = { balance: "0", source: "local" };
+                  }
+                });
+              });
+              
+              return {
+                ...key,
+                balances: keyBalances
+              };
+            });
+            
+            setPageData(updatedData);
+            
+          } else {
+            // Legacy single-currency mode
+            console.log('₿ Processing legacy Bitcoin-only format');
+            const addresses = data.keys.flatMap((key: any) => [
+              key.addresses?.p2pkh_compressed,
+              key.addresses?.p2pkh_uncompressed,
+              key.addresses?.p2wpkh,
+              key.addresses?.p2sh_p2wpkh,
+              key.addresses?.p2tr
+            ]).filter(Boolean);
+            
+            console.log(`🔗 Extracted ${addresses.length} Bitcoin addresses for balance check`);
+            
+            if (addresses.length > 0) {
+              const balanceResponse = await fetch('/api/balances', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  addresses: addresses,
+                  currencies: ['BTC']
+                }),
+              });
+            
+              if (balanceResponse.ok) {
+                const balanceData = await balanceResponse.json();
+                console.log('✅ Balance check successful:', balanceData);
+                
+                // Update page data with balances
+                const updatedData = { ...data };
+                
+                if (balanceData.success && balanceData.balances) {
+                  updatedData.keys = updatedData.keys.map((key: any) => {
+                    const keyBalances: any = {};
+                    
+                    // Legacy format
+                    keyBalances.BTC = {};
+                    Object.entries(key.addresses).forEach(([addrType, address]: [string, any]) => {
+                      if (balanceData.balances[address]) {
+                        keyBalances.BTC[addrType] = balanceData.balances[address].BTC || { balance: "0", source: "local" };
+                      }
+                    });
+                    
+                    return {
+                      ...key,
+                      balances: keyBalances
+                    };
+                  });
+                  
+                  setPageData(updatedData);
+                }
+              } else {
+                console.error('Balance API returned error:', balanceResponse.status);
+              }
+            }
+          }
+        } catch (balanceError) {
+          console.error('Error checking balances:', balanceError);
+          // Don't fail the page generation if balance check fails
+        }
+      }
+      
+      setNotification({ 
+        message: formatTranslation(t.pageGenerated, { page: pageToGenerate }) + 
+                (generateLocally ? ' ⚡ (Client-side)' : ' 🌐 (Server-side)'), 
+        type: 'success' 
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setNotification({ 
+        message: t.failedToGenerate + (generateLocally ? ' (Client-side)' : ' (Server-side)'), 
+        type: 'error' 
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -358,46 +470,107 @@ export default function Dashboard() {
       
       // Check balances after page generation
       if (data) {
+        console.log('🔍 Starting balance check for page data:', { 
+          multiCurrency: data.multiCurrency, 
+          keysCount: data.keys?.length,
+          hasKeys: !!data.keys 
+        });
+        
         try {
-          const balanceData = await fetch('/api/balances', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              addresses: data.keys.flatMap((key: any) => [
-                key.addresses.p2pkh_compressed,
-                key.addresses.p2pkh_uncompressed,
-                key.addresses.p2wpkh,
-                key.addresses.p2sh_p2wpkh,
-                key.addresses.p2tr
-              ])
-            }),
-          });
+          // Handle both legacy and multi-currency formats
+          let addresses: string[] = [];
           
-          if (balanceData.ok) {
-            const balances = await balanceData.json();
-            // Update page data with balances
-            const updatedData = { ...data };
-            updatedData.keys = data.keys.map((key: any) => {
-              const keyBalances = {
-                p2pkh_compressed: balances[key.addresses.p2pkh_compressed] || 0,
-                p2pkh_uncompressed: balances[key.addresses.p2pkh_uncompressed] || 0,
-                p2wpkh: balances[key.addresses.p2wpkh] || 0,
-                p2sh_p2wpkh: balances[key.addresses.p2sh_p2wpkh] || 0,
-                p2tr: balances[key.addresses.p2tr] || 0,
-              };
-              const total = Object.values(keyBalances).reduce((sum: number, balance: number) => sum + balance, 0);
-              return {
-                ...key,
-                balances: keyBalances,
-                totalBalance: total
-              };
+          if (data.multiCurrency) {
+            console.log('📊 Processing multi-currency format');
+            // Multi-currency format: extract all addresses from all currencies
+            addresses = data.keys.flatMap((key: any) => {
+              const allAddresses: string[] = [];
+              if (key.addresses) {
+                // Extract addresses from all supported currencies
+                Object.values(key.addresses).forEach((currencyAddresses: any) => {
+                  if (typeof currencyAddresses === 'object') {
+                    Object.values(currencyAddresses).forEach((addr: any) => {
+                      if (typeof addr === 'string' && addr.length > 0) {
+                        allAddresses.push(addr);
+                      }
+                    });
+                  }
+                });
+              }
+              return allAddresses;
             });
-            updatedData.totalPageBalance = updatedData.keys.reduce((sum: number, key: any) => sum + key.totalBalance, 0);
-            setPageData(updatedData);
+          } else {
+            console.log('₿ Processing legacy Bitcoin-only format');
+            // Legacy Bitcoin-only format
+            addresses = data.keys.flatMap((key: any) => [
+              key.addresses?.p2pkh_compressed,
+              key.addresses?.p2pkh_uncompressed,
+              key.addresses?.p2wpkh,
+              key.addresses?.p2sh_p2wpkh,
+              key.addresses?.p2tr
+            ]).filter(Boolean); // Remove undefined/null values
+          }
+
+          console.log(`🔗 Extracted ${addresses.length} addresses for balance check`);
+
+          // Only make API call if we have valid addresses
+          if (addresses.length > 0) {
+            console.log('🌐 Making balance API call...');
+            const balanceData = await fetch('/api/balances', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                addresses: addresses,
+                currencies: data.multiCurrency ? ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC'] : ['BTC']
+              }),
+            });
+            
+            if (balanceData.ok) {
+              const balances = await balanceData.json();
+              console.log('✅ Balance check successful:', balances);
+              // Update page data with balances
+              const updatedData = { ...data };
+              
+              if (data.multiCurrency) {
+                // Handle multi-currency balance updates
+                // TODO: Implement multi-currency balance mapping
+                updatedData.keys = data.keys.map((key: any) => ({
+                  ...key,
+                  balances: balances || {},
+                  totalBalance: 0 // Calculate from multi-currency balances
+                }));
+              } else {
+                // Legacy Bitcoin-only balance updates
+                updatedData.keys = data.keys.map((key: any) => {
+                  const keyBalances = {
+                    p2pkh_compressed: balances[key.addresses?.p2pkh_compressed] || 0,
+                    p2pkh_uncompressed: balances[key.addresses?.p2pkh_uncompressed] || 0,
+                    p2wpkh: balances[key.addresses?.p2wpkh] || 0,
+                    p2sh_p2wpkh: balances[key.addresses?.p2sh_p2wpkh] || 0,
+                    p2tr: balances[key.addresses?.p2tr] || 0,
+                  };
+                  const total = Object.values(keyBalances).reduce((sum: number, balance: number) => sum + balance, 0);
+                  return {
+                    ...key,
+                    balances: keyBalances,
+                    totalBalance: total
+                  };
+                });
+              }
+              updatedData.totalPageBalance = updatedData.keys.reduce((sum: number, key: any) => sum + key.totalBalance, 0);
+              setPageData(updatedData);
+              console.log('💰 Balance data updated in page state');
+            } else {
+              console.error('❌ Balance API call failed:', balanceData.status, balanceData.statusText);
+            }
+          } else {
+            console.warn('⚠️ No valid addresses found for balance check');
           }
         } catch (balanceError) {
-          console.warn('Failed to fetch balances:', balanceError);
+          console.error('💥 Balance check error:', balanceError);
         }
+      } else {
+        console.warn('⚠️ No page data available for balance check');
       }
       
       // Only update navigation store if number is within safe range
@@ -437,7 +610,7 @@ export default function Dashboard() {
       console.log(`🎲 Generated random page: ${randomPageStr} (mode: ${generateLocally ? 'local' : 'server'})`);
       
       let data;
-      
+
       if (generateLocally) {
         // Local generation
         console.log('🖥️ Using local generation for random page');
@@ -481,7 +654,7 @@ export default function Dashboard() {
 
         data = await response.json();
       }
-      
+
       // Update state and check balances
       setPageData(data);
       setCurrentPage(data.pageNumber);
@@ -499,42 +672,90 @@ export default function Dashboard() {
       
       // Check balances after page generation
       if (data) {
+        console.log('🔍 Starting balance check for page data:', { 
+          multiCurrency: data.multiCurrency, 
+          keysCount: data.keys?.length,
+          hasKeys: !!data.keys 
+        });
+        
         try {
-          const balanceData = await fetch('/api/balances', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              addresses: data.keys.flatMap((key: any) => [
-                key.addresses.p2pkh_compressed,
-                key.addresses.p2pkh_uncompressed,
-                key.addresses.p2wpkh,
-                key.addresses.p2sh_p2wpkh,
-                key.addresses.p2tr
-              ])
-            }),
-          });
+          // Handle both legacy and multi-currency formats
+          let addresses: string[] = [];
           
-          if (balanceData.ok) {
-            const balances = await balanceData.json();
-            // Update page data with balances
-            const updatedData = { ...data };
-            updatedData.keys = data.keys.map((key: any) => {
-              const keyBalances = {
-                p2pkh_compressed: balances[key.addresses.p2pkh_compressed] || 0,
-                p2pkh_uncompressed: balances[key.addresses.p2pkh_uncompressed] || 0,
-                p2wpkh: balances[key.addresses.p2wpkh] || 0,
-                p2sh_p2wpkh: balances[key.addresses.p2sh_p2wpkh] || 0,
-                p2tr: balances[key.addresses.p2tr] || 0,
-              };
-              const total = Object.values(keyBalances).reduce((sum: number, balance: number) => sum + balance, 0);
-              return {
-                ...key,
-                balances: keyBalances,
-                totalBalance: total
-              };
+          if (data.multiCurrency) {
+            // Multi-currency format: extract all addresses from all currencies
+            addresses = data.keys.flatMap((key: any) => {
+              const allAddresses: string[] = [];
+              if (key.addresses) {
+                // Extract addresses from all supported currencies
+                Object.values(key.addresses).forEach((currencyAddresses: any) => {
+                  if (typeof currencyAddresses === 'object') {
+                    Object.values(currencyAddresses).forEach((addr: any) => {
+                      if (typeof addr === 'string' && addr.length > 0) {
+                        allAddresses.push(addr);
+                      }
+                    });
+                  }
+                });
+              }
+              return allAddresses;
             });
-            updatedData.totalPageBalance = updatedData.keys.reduce((sum: number, key: any) => sum + key.totalBalance, 0);
-            setPageData(updatedData);
+          } else {
+            // Legacy Bitcoin-only format
+            addresses = data.keys.flatMap((key: any) => [
+              key.addresses?.p2pkh_compressed,
+              key.addresses?.p2pkh_uncompressed,
+              key.addresses?.p2wpkh,
+              key.addresses?.p2sh_p2wpkh,
+              key.addresses?.p2tr
+            ]).filter(Boolean); // Remove undefined/null values
+          }
+
+          // Only make API call if we have valid addresses
+          if (addresses.length > 0) {
+            const balanceData = await fetch('/api/balances', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                addresses: addresses,
+                currencies: data.multiCurrency ? ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC'] : ['BTC']
+              }),
+            });
+            
+            if (balanceData.ok) {
+              const balances = await balanceData.json();
+              // Update page data with balances
+              const updatedData = { ...data };
+              
+              if (data.multiCurrency) {
+                // Handle multi-currency balance updates
+                // TODO: Implement multi-currency balance mapping
+                updatedData.keys = data.keys.map((key: any) => ({
+                  ...key,
+                  balances: balances || {},
+                  totalBalance: 0 // Calculate from multi-currency balances
+                }));
+              } else {
+                // Legacy Bitcoin-only balance updates
+                updatedData.keys = data.keys.map((key: any) => {
+                  const keyBalances = {
+                    p2pkh_compressed: balances[key.addresses?.p2pkh_compressed] || 0,
+                    p2pkh_uncompressed: balances[key.addresses?.p2pkh_uncompressed] || 0,
+                    p2wpkh: balances[key.addresses?.p2wpkh] || 0,
+                    p2sh_p2wpkh: balances[key.addresses?.p2sh_p2wpkh] || 0,
+                    p2tr: balances[key.addresses?.p2tr] || 0,
+                  };
+                  const total = Object.values(keyBalances).reduce((sum: number, balance: number) => sum + balance, 0);
+                  return {
+                    ...key,
+                    balances: keyBalances,
+                    totalBalance: total
+                  };
+                });
+              }
+              updatedData.totalPageBalance = updatedData.keys.reduce((sum: number, key: any) => sum + key.totalBalance, 0);
+              setPageData(updatedData);
+            }
           }
         } catch (balanceError) {
           console.warn('Failed to fetch balances:', balanceError);
@@ -617,9 +838,25 @@ export default function Dashboard() {
     return pageData.keys.slice(startIndex, startIndex + keysPerPage);
   }, [pageData, currentKeysPage, keysPerPage]);
 
-  const totalPages = useMemo(() => {
     // Convert BigInt to number for UI components that expect number
-    return typeof navTotalPages === 'bigint' ? Number(navTotalPages) : navTotalPages;
+  const totalPagesForUI = useMemo(() => {
+    // For very large numbers, try to parse as BigInt first, then convert to number
+    try {
+      // Use the utility method to get BigInt value
+      const pageBigInt = navTotalPages ? BigInt(navTotalPages) : BigInt(1);
+      // Use BigInt for very large numbers, Number for smaller ones
+      if (pageBigInt > BigInt(Number.MAX_SAFE_INTEGER)) {
+        // Only warn occasionally to avoid console spam
+        if (Math.random() < 0.01) {
+          console.warn(`Total pages (${pageBigInt.toString()}) exceeds MAX_SAFE_INTEGER, UI may show approximation`);
+        }
+        return Number.MAX_SAFE_INTEGER;
+      }
+      return Number(pageBigInt);
+    } catch (error) {
+      console.error('Error converting totalPages to number:', error);
+      return 1;
+    }
   }, [navTotalPages]);
 
   const handlePageChange = useThrottle(useCallback((page: string) => {
@@ -634,7 +871,10 @@ export default function Dashboard() {
         if (pageBigInt > BigInt(Number.MAX_SAFE_INTEGER)) {
           // For very large page numbers, work with string representation
           pageNumber = Number.MAX_SAFE_INTEGER;
-          console.log(`Large page number detected: ${page}. Using string-based operations.`);
+          // Only log this occasionally to avoid console spam
+          if (Math.random() < 0.01) { // Log ~1% of the time
+            console.log(`Large page number detected: ${page}. Using string-based operations.`);
+          }
         } else {
           pageNumber = Number(pageBigInt);
         }
@@ -993,13 +1233,13 @@ export default function Dashboard() {
                     </Tooltip>
                     
                     <Typography variant="body2" sx={{ mx: 2, minWidth: '60px', textAlign: 'center' }}>
-                      {formatTranslation(t.pageOf, { current: currentKeysPage, total: totalPages })}
+                      {formatTranslation(t.pageOf, { current: currentKeysPage, total: totalPagesForUI })}
                     </Typography>
                     
                     <Tooltip title={t.nextPage} arrow>
                       <IconButton
-                        onClick={() => setCurrentKeysPage(prev => Math.min(totalPages, prev + 1))}
-                        disabled={currentKeysPage === totalPages}
+                        onClick={() => setCurrentKeysPage(prev => Math.min(totalPagesForUI, prev + 1))}
+                        disabled={currentKeysPage === totalPagesForUI}
                         size="small"
                       >
                         <NavigateNextIcon />
@@ -1008,8 +1248,8 @@ export default function Dashboard() {
                     
                     <Tooltip title={t.lastPage} arrow>
                       <IconButton
-                        onClick={() => setCurrentKeysPage(totalPages)}
-                        disabled={currentKeysPage === totalPages}
+                        onClick={() => setCurrentKeysPage(totalPagesForUI)}
+                        disabled={currentKeysPage === totalPagesForUI}
                         size="small"
                       >
                         <LastPageIcon />

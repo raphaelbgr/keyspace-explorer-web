@@ -78,9 +78,9 @@ const RandomKeyCard = memo<RandomKeyCardProps>(({
             
             const randomKeyIndex = secureRandomKeyInPage(keysPerPage);
             console.log(`🎲 Random key mode: Step 2 - Selecting key #${randomKeyIndex + 1} from the new random page`);
-            
-            if (onRandomKeyInPage) {
-              onRandomKeyInPage(randomKeyIndex);
+              
+              if (onRandomKeyInPage) {
+                onRandomKeyInPage(randomKeyIndex);
             }
           } catch (error) {
             console.error('Random page generation failed in key mode:', error);
@@ -188,28 +188,30 @@ const RandomKeyCard = memo<RandomKeyCardProps>(({
             } 
             arrow
           >
-            <Button
-              variant="contained"
-              color="warning"
-              onClick={handleDiceRoll}
-              disabled={
-                disabled || 
-                diceRolling || 
-                (!onRandomPage && randomMode === 'page') || 
-                (!onRandomKeyInPage && randomMode === 'key')
-              }
-              startIcon={<CasinoIcon />}
-              sx={{
-                animation: diceRolling ? 'spin 0.3s linear infinite' : 'none',
-                '@keyframes spin': {
-                  '0%': { transform: 'rotate(0deg)' },
-                  '100%': { transform: 'rotate(360deg)' },
-                },
-                minWidth: '140px'
-              }}
-            >
-              🎲 Random {randomMode}
-            </Button>
+            <span>
+              <Button
+                variant="contained"
+                color="warning"
+                onClick={handleDiceRoll}
+                disabled={
+                  disabled || 
+                  diceRolling || 
+                  (!onRandomPage && randomMode === 'page') || 
+                  (!onRandomKeyInPage && randomMode === 'key')
+                }
+                startIcon={<CasinoIcon />}
+                sx={{
+                  animation: diceRolling ? 'spin 0.3s linear infinite' : 'none',
+                  '@keyframes spin': {
+                    '0%': { transform: 'rotate(0deg)' },
+                    '100%': { transform: 'rotate(360deg)' },
+                  },
+                  minWidth: '140px'
+                }}
+              >
+                🎲 Random {randomMode}
+              </Button>
+            </span>
           </Tooltip>
           
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>

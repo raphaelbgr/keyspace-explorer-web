@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const requestCounts = new Map<string, { count: number; resetTime: number }>();
 
 const WINDOW_MS = 60 * 1000; // 1 minute
-const MAX_REQUESTS = 30; // 30 requests per minute
+const MAX_REQUESTS = 1000; // 1000 requests per minute (much higher for development/testing)
 
 export const withRateLimit = (handler: Function) => {
   return async (request: NextRequest) => {

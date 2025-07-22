@@ -152,7 +152,7 @@ const AdvancedNavigation = ({
           <Typography variant="h6">
             🎯 Advanced Navigation
           </Typography>
-          <Chip
+          <Chip 
             label={`${keysPerPage} keys/page`}
             size="small"
             variant="outlined"

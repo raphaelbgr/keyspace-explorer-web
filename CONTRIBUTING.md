@@ -1,5 +1,5 @@
 
-# Contributing to Bitcoin Keyspace Explorer
+cls# Contributing to Bitcoin Keyspace Explorer
 
 Thank you for your interest in contributing to the Bitcoin Keyspace Explorer! This document provides guidelines and information for contributors.
 
