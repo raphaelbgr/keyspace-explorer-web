@@ -5,7 +5,8 @@ import {
   ExpandLess as ExpandLessIcon,
   Visibility as VisibilityIcon,
   AccountBalance as BalanceIcon,
-  Key as KeyIcon
+  Key as KeyIcon,
+  CurrencyExchange as CurrencyExchangeIcon
 } from '@mui/icons-material';
 import AddressModal from './AddressModal';
 import AddressManagement from './AddressManagement';
@@ -13,7 +14,7 @@ import { CryptoCurrency } from '../../lib/types/multi-currency';
 
 // Currency configuration for multi-currency support
 const CURRENCY_CONFIG = {
-  BTC: { name: 'Bitcoin', icon: '₿', color: '#f7931a', shortName: 'BTC' },
+  BTC: { name: 'Bitcoin', icon: '🟠', color: '#f7931a', shortName: 'BTC' },
   BCH: { name: 'Bitcoin Cash', icon: '🍊', color: '#00d4aa', shortName: 'BCH' },
   DASH: { name: 'Dash', icon: '🔵', color: '#1c75bc', shortName: 'DASH' },
   DOGE: { name: 'Dogecoin', icon: '🐕', color: '#c2a633', shortName: 'DOGE' },
@@ -67,6 +68,8 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
   const [modalOpen, setModalOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadStarted, setLoadStarted] = useState(false);
+  const [showAllTokens, setShowAllTokens] = useState(false);
+  const [expandedCurrencies, setExpandedCurrencies] = useState<Set<CryptoCurrency>>(new Set());
   const cardRef = React.useRef<HTMLDivElement>(null);
 
   // Lazy loading on intersection
@@ -118,9 +121,18 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
   const hasFunds = keyData.totalBalance > 0 || keyData.hasAnyFunds;
   
   // Detect if this is multi-currency format or legacy Bitcoin-only format
-  const isMultiCurrency = keyData.addresses && typeof keyData.addresses === 'object' && 
-    !(keyData.addresses as any).p2pkh_compressed && // Legacy format has direct properties
-    Object.keys(keyData.addresses).some(key => typeof (keyData.addresses as any)[key] === 'object');
+  const isMultiCurrency = (() => {
+    if (!keyData.addresses || typeof keyData.addresses !== 'object') return false;
+    
+    // Check if any top-level key is a known currency symbol with nested addresses
+    const currencyKeys = Object.keys(keyData.addresses);
+    const hasCurrencySymbols = currencyKeys.some(key => Object.keys(CURRENCY_CONFIG).includes(key));
+    
+    // Legacy format has direct address fields like p2pkh_compressed at top level
+    const hasLegacyFormat = (keyData.addresses as any).p2pkh_compressed !== undefined;
+    
+    return hasCurrencySymbols && !hasLegacyFormat;
+  })();
   
   // Extract Bitcoin addresses based on format
   const bitcoinAddresses = isMultiCurrency 
@@ -165,6 +177,135 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
   const getCurrencyFunds = (currency: CryptoCurrency) => {
     if (!isMultiCurrency) return currency === 'BTC' ? hasFunds : false;
     return fundedCurrencies.includes(currency);
+  };
+
+  // Get all available currencies in the data
+  const getAvailableCurrencies = (): CryptoCurrency[] => {
+    if (!isMultiCurrency) return ['BTC'];
+    return Object.keys(keyData.addresses).filter(key => 
+      typeof (keyData.addresses as any)[key] === 'object' && 
+      Object.keys(CURRENCY_CONFIG).includes(key)
+    ) as CryptoCurrency[];
+  };
+
+  const availableCurrencies = getAvailableCurrencies();
+  const nonBTCCurrencies = availableCurrencies.filter(c => c !== 'BTC');
+
+  // Calculate total balance across all currencies
+  const getTotalBalanceAcrossAllCurrencies = (): number => {
+    if (!isMultiCurrency) {
+      return keyData.totalBalance || Object.values(safeBalances).reduce((sum, bal) => sum + bal, 0);
+    }
+    
+    return availableCurrencies.reduce((total, currency) => {
+      if (currency === 'BTC') {
+        // Use safeBalances for Bitcoin
+        return total + Object.values(safeBalances).reduce((sum, bal) => sum + bal, 0);
+      }
+      
+      // For other currencies, sum up the balances from the key data
+      const currencyBalances = (keyData.balances as any)?.[currency];
+      if (currencyBalances && typeof currencyBalances === 'object') {
+        return total + Object.values(currencyBalances).reduce((sum: number, bal: any) => {
+          return sum + getNumericBalance(bal);
+        }, 0);
+      }
+      
+      return total;
+    }, 0);
+  };
+
+  // Toggle currency expansion
+  const toggleCurrencyExpansion = (currency: CryptoCurrency) => {
+    const newExpanded = new Set(expandedCurrencies);
+    if (newExpanded.has(currency)) {
+      newExpanded.delete(currency);
+    } else {
+      newExpanded.add(currency);
+    }
+    setExpandedCurrencies(newExpanded);
+  };
+
+  // Render currency addresses section
+  const renderCurrencyAddresses = (currency: CryptoCurrency, addresses: any, isExpanded: boolean = false) => {
+    if (!addresses) return null;
+    
+    const config = CURRENCY_CONFIG[currency];
+    const isFunded = getCurrencyFunds(currency);
+    const addressEntries = Object.entries(addresses);
+    
+    return (
+      <Box key={currency} sx={{ 
+        p: 1, 
+        borderRadius: 1, 
+        bgcolor: isFunded ? `${config.color}15` : 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        mb: 1
+      }}>
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            mb: 0.5 
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleCurrencyExpansion(currency);
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography sx={{ fontSize: '0.9em' }}>{config.icon}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+              {config.name} ({addressEntries.length} addresses):
+            </Typography>
+            {isFunded && (
+              <Chip label="💰 FUNDED" size="small" color="success" sx={{ fontSize: '0.5rem', height: 16 }} />
+            )}
+          </Box>
+          <IconButton size="small" sx={{ padding: 0.25 }}>
+            {expandedCurrencies.has(currency) ? <ExpandLessIcon sx={{ fontSize: '1rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '1rem' }} />}
+          </IconButton>
+        </Box>
+        
+        {/* Show first address by default, all addresses if expanded or showAllTokens is true */}
+        {addressEntries.slice(0, (isExpanded || expandedCurrencies.has(currency) || showAllTokens) ? addressEntries.length : 1).map(([type, address]: [string, any]) => (
+          <Box key={type} sx={{ mb: 0.5 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', display: 'block' }}>
+              {type.replace(/_/g, ' ').toUpperCase()}:
+            </Typography>
+            <AddressManagement
+              address={address}
+              currency={currency}
+              addressType={type}
+              compact={true}
+              showQR={false}
+            />
+          </Box>
+        ))}
+        
+        {/* Show expansion hint if there are more addresses and not expanded */}
+        {addressEntries.length > 1 && !expandedCurrencies.has(currency) && !showAllTokens && (
+          <Typography 
+            variant="caption" 
+            color="text.secondary" 
+            sx={{ 
+              fontSize: '0.6rem', 
+              fontStyle: 'italic',
+              cursor: 'pointer',
+              '&:hover': { color: 'primary.main' }
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleCurrencyExpansion(currency);
+            }}
+          >
+            Click to show {addressEntries.length - 1} more addresses...
+          </Typography>
+        )}
+      </Box>
+    );
   };
   
   return (
@@ -227,6 +368,24 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
           </Box>
         )}
 
+        {/* Multi-Currency Summary Indicator */}
+        {isMultiCurrency && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <CurrencyExchangeIcon sx={{ fontSize: '0.8rem', color: 'primary.main' }} />
+            <Typography variant="caption" color="primary.main" sx={{ fontSize: '0.7rem' }}>
+              Multi-Currency Key ({availableCurrencies.length} cryptocurrencies)
+            </Typography>
+            {nonBTCCurrencies.length > 0 && (
+              <Chip 
+                label={`+${nonBTCCurrencies.length} more`} 
+                size="small" 
+                color="primary"
+                sx={{ fontSize: '0.5rem', height: 16 }}
+              />
+            )}
+          </Box>
+        )}
+
         {/* Private Key Preview */}
         <Typography variant="body2" fontFamily="monospace" sx={{ 
           wordBreak: 'break-all', 
@@ -237,83 +396,49 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
           {keyData.privateKey.substring(0, 16)}...
         </Typography>
 
-        {/* Bitcoin Balance Summary */}
+        {/* Total Balance Summary */}
         <Box sx={{ mb: 1 }}>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-            {isMultiCurrency ? '₿ Bitcoin Balance Summary:' : '🟠 Bitcoin Balance Breakdown (5 address types):'}
+            {isMultiCurrency ? '💰 Total Balance (All Currencies):' : '🟠 Total Bitcoin Balance:'}
           </Typography>
           
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-            <BalanceIcon sx={{ fontSize: '0.8rem', color: 'text.secondary' }} />
-            <Typography variant="caption" color="text.secondary">
-              Total: {(keyData.totalBalance || Object.values(safeBalances).reduce((sum, bal) => sum + bal, 0)).toFixed(8)} BTC
-            </Typography>
-            {hasFunds && (
-              <Chip 
-                label="💰 FUNDED!" 
-                color="success" 
-                size="small"
-                sx={{ fontSize: '0.6rem', height: 16 }}
-              />
-            )}
-          </Box>
-          
-          {/* Quick Balance Grid */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 0.25 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>P2PKH (Compressed):</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" fontFamily="monospace" sx={{ fontSize: '0.65rem' }}>
-                  {safeBalances.p2pkh_compressed.toFixed(8)}
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            p: 2,
+            borderRadius: 1,
+            bgcolor: hasFunds ? 'rgba(76, 175, 80, 0.1)' : 'rgba(255,255,255,0.05)',
+            border: hasFunds ? '1px solid rgba(76, 175, 80, 0.3)' : '1px solid rgba(255,255,255,0.1)'
+          }}>
+            <Box sx={{ textAlign: 'center' }}>
+              <BalanceIcon sx={{ fontSize: '1.5rem', color: hasFunds ? 'success.main' : 'text.secondary', mb: 0.5 }} />
+              <Typography variant="h6" fontFamily="monospace" sx={{ 
+                fontSize: '1rem',
+                fontWeight: 'bold',
+                color: hasFunds ? 'success.main' : 'text.primary'
+              }}>
+                {isMultiCurrency 
+                  ? getTotalBalanceAcrossAllCurrencies().toFixed(8)
+                  : (keyData.totalBalance || Object.values(safeBalances).reduce((sum, bal) => sum + bal, 0)).toFixed(8)
+                }
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                {isMultiCurrency ? 'Multi-Currency Total' : 'BTC'}
+              </Typography>
+              {hasFunds && (
+                <Chip 
+                  label="💰 FUNDED!" 
+                  color="success" 
+                  size="small"
+                  sx={{ fontSize: '0.6rem', height: 18, mt: 0.5 }}
+                />
+              )}
+              {isMultiCurrency && availableCurrencies.length > 1 && (
+                <Typography variant="caption" color="primary.main" sx={{ display: 'block', mt: 0.5, fontSize: '0.6rem' }}>
+                  Across {availableCurrencies.length} currencies
                 </Typography>
-                {safeBalances.p2pkh_compressed > 0 && (
-                  <Chip label="💰" size="small" color="success" sx={{ minWidth: 20, height: 14, fontSize: '0.5rem' }} />
-                )}
-              </Box>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>P2PKH (Uncompressed):</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" fontFamily="monospace" sx={{ fontSize: '0.65rem' }}>
-                  {safeBalances.p2pkh_uncompressed.toFixed(8)}
-                </Typography>
-                {safeBalances.p2pkh_uncompressed > 0 && (
-                  <Chip label="💰" size="small" color="success" sx={{ minWidth: 20, height: 14, fontSize: '0.5rem' }} />
-                )}
-              </Box>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>P2WPKH:</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" fontFamily="monospace" sx={{ fontSize: '0.65rem' }}>
-                  {safeBalances.p2wpkh.toFixed(8)}
-                </Typography>
-                {safeBalances.p2wpkh > 0 && (
-                  <Chip label="💰" size="small" color="success" sx={{ minWidth: 20, height: 14, fontSize: '0.5rem' }} />
-                )}
-              </Box>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>P2SH-P2WPKH:</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" fontFamily="monospace" sx={{ fontSize: '0.65rem' }}>
-                  {safeBalances.p2sh_p2wpkh.toFixed(8)}
-                </Typography>
-                {safeBalances.p2sh_p2wpkh > 0 && (
-                  <Chip label="💰" size="small" color="success" sx={{ minWidth: 20, height: 14, fontSize: '0.5rem' }} />
-                )}
-              </Box>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>P2TR:</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" fontFamily="monospace" sx={{ fontSize: '0.65rem' }}>
-                  {safeBalances.p2tr.toFixed(8)}
-                </Typography>
-                {safeBalances.p2tr > 0 && (
-                  <Chip label="💰" size="small" color="success" sx={{ minWidth: 20, height: 14, fontSize: '0.5rem' }} />
-                )}
-              </Box>
+              )}
             </Box>
           </Box>
         </Box>
@@ -340,10 +465,35 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
           <Box sx={{ mb: 1 }}>
             {areAddressesLoaded ? (
               <>
+                {/* Show All Tokens Toggle for Multi-Currency */}
+                {isMultiCurrency && nonBTCCurrencies.length > 0 && (
+                  <Box sx={{ mb: 2 }}>
+                    <Button
+                      variant={showAllTokens ? "contained" : "outlined"}
+                      size="small"
+                      startIcon={<CurrencyExchangeIcon />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowAllTokens(!showAllTokens);
+                      }}
+                      sx={{ fontSize: '0.7rem' }}
+                    >
+                      {showAllTokens ? 'Hide' : 'Show'} All {availableCurrencies.length} Cryptocurrencies
+                    </Button>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontSize: '0.65rem' }}>
+                      {showAllTokens 
+                        ? `Showing all addresses for ${availableCurrencies.length} cryptocurrencies`
+                        : `Click to show complete address listings for all ${availableCurrencies.length} supported cryptocurrencies`
+                      }
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* Bitcoin Addresses Section */}
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
                   🔗 Bitcoin Addresses with Enhanced Management:
                 </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 2 }}>
                   {Object.entries(safeAddresses).map(([type, address]) => (
                     <Box key={type} sx={{ 
                       p: 1, 
@@ -377,55 +527,31 @@ const LazyKeyCard = memo<LazyKeyCardProps>(({
                   ))}
                 </Box>
 
-                {/* Multi-Currency Sections */}
-                {isMultiCurrency && (
+                {/* Multi-Currency Sections - ENHANCED with Complete Visibility */}
+                {isMultiCurrency && nonBTCCurrencies.length > 0 && (
                   <>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, mb: 1 }}>
-                      🌐 Other Cryptocurrency Addresses:
+                      🌐 All {nonBTCCurrencies.length} Other Cryptocurrency Addresses:
                     </Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                      {Object.keys(CURRENCY_CONFIG).filter(currency => currency !== 'BTC').map((currency) => {
-                        const currencyKey = currency as CryptoCurrency;
-                        const currencyAddresses = (keyData.addresses as any)[currencyKey];
-                        const config = CURRENCY_CONFIG[currencyKey];
-                        const isFunded = getCurrencyFunds(currencyKey);
-                        
-                        if (!currencyAddresses) return null;
-                        
-                        return (
-                          <Box key={currency} sx={{ 
-                            p: 1, 
-                            borderRadius: 1, 
-                            bgcolor: isFunded ? `${config.color}15` : 'rgba(255,255,255,0.03)',
-                            border: '1px solid rgba(255,255,255,0.1)'
-                          }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                              <Typography sx={{ fontSize: '0.9em' }}>{config.icon}</Typography>
-                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                                {config.name}:
-                              </Typography>
-                              {isFunded && (
-                                <Chip label="💰 FUNDED" size="small" color="success" sx={{ fontSize: '0.5rem', height: 16 }} />
-                              )}
-                            </Box>
-                            {Object.entries(currencyAddresses).slice(0, 1).map(([type, address]: [string, any]) => (
-                              <AddressManagement
-                                key={type}
-                                address={address}
-                                currency={currencyKey}
-                                addressType={type}
-                                compact={true}
-                                showQR={false}
-                              />
-                            ))}
-                            {Object.keys(currencyAddresses).length > 1 && (
-                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem', fontStyle: 'italic' }}>
-                                +{Object.keys(currencyAddresses).length - 1} more addresses...
-                              </Typography>
-                            )}
-                          </Box>
-                        );
+                      {nonBTCCurrencies.map((currency) => {
+                        const currencyAddresses = (keyData.addresses as any)[currency];
+                        return renderCurrencyAddresses(currency, currencyAddresses);
                       })}
+                    </Box>
+                    
+                    {/* Complete Visibility Confirmation */}
+                    <Box sx={{ mt: 2, p: 1, bgcolor: 'rgba(25, 118, 210, 0.1)', borderRadius: 1, border: '1px solid rgba(25, 118, 210, 0.3)' }}>
+                      <Typography variant="caption" color="primary.main" sx={{ fontSize: '0.65rem', fontWeight: 'bold' }}>
+                        ✅ Complete Cryptocurrency Visibility Active
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.6rem' }}>
+                        All {availableCurrencies.length} supported cryptocurrencies ({availableCurrencies.join(', ')}) are accessible above. 
+                        {showAllTokens 
+                          ? ' All addresses are currently displayed.' 
+                          : ' Click currency sections or "Show All Cryptocurrencies" to view complete address listings.'
+                        }
+                      </Typography>
                     </Box>
                   </>
                 )}

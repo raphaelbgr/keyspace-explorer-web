@@ -202,30 +202,64 @@ export default function Dashboard() {
     try {
       let data;
       
-      // Force server-side generation for multi-currency support
-      // Client-side generation only supports Bitcoin addresses
-      const useMultiCurrency = true; // Always enable multi-currency
+      // Check if multi-currency is needed based on user preference
+      // For now, local generation supports Bitcoin only, server supports all currencies
       
-      if (generateLocally && !useMultiCurrency) {
-        // Client-side generation (Bitcoin only)
-        console.log('🚀 Using client-side generation (Bitcoin only)');
+      if (generateLocally) {
+        // Client-side generation with multi-currency support
+        console.log('🚀 Using client-side generation (Multi-currency)');
         const pageBigInt = safeToBigInt(pageToGenerate);
-        data = await clientKeyGenerationService.generatePage(pageBigInt, navKeysPerPage);
+        
+        // Generate base Bitcoin keys first
+        const baseData = await clientKeyGenerationService.generatePage(pageBigInt, navKeysPerPage);
+        
+        // Import multi-currency service for client-side use
+        const { multiCurrencyKeyGenerationService } = await import('../lib/services/MultiCurrencyKeyGenerationService');
+        
+        // Generate multi-currency addresses for each key
+        const multiCurrencyKeys = await Promise.all(
+          baseData.keys.map(async (baseKey) => {
+            try {
+              const allAddresses = await multiCurrencyKeyGenerationService.generateMultiCurrencyAddresses(baseKey.privateKey);
+              
+              return {
+                privateKey: baseKey.privateKey,
+                pageNumber: baseKey.pageNumber.toString(),
+                index: baseKey.index,
+                addresses: allAddresses, // Multi-currency format
+                balances: {},
+                totalBalance: 0,
+              };
+            } catch (error) {
+              console.error('Error generating multi-currency addresses for key:', baseKey.index, error);
+              // Fallback to Bitcoin-only
+              return {
+                privateKey: baseKey.privateKey,
+                pageNumber: baseKey.pageNumber.toString(),
+                index: baseKey.index,
+                addresses: baseKey.addresses,
+                balances: baseKey.balances,
+                totalBalance: baseKey.totalBalance,
+              };
+            }
+          })
+        );
         
         // Convert to the same format as API response
         const serializedData = {
-          pageNumber: data.pageNumber.toString(),
-          keys: data.keys.map(key => ({
-            privateKey: key.privateKey,
-            pageNumber: key.pageNumber.toString(),
-            index: key.index,
-            addresses: key.addresses,
-            balances: key.balances,
-            totalBalance: key.totalBalance,
-          })),
-          totalPageBalance: data.totalPageBalance,
-          generatedAt: data.generatedAt.toISOString(),
-          balancesFetched: data.balancesFetched,
+          pageNumber: baseData.pageNumber.toString(),
+          keys: multiCurrencyKeys,
+          totalPageBalance: baseData.totalPageBalance,
+          generatedAt: baseData.generatedAt.toISOString(),
+          balancesFetched: baseData.balancesFetched,
+          multiCurrency: true,
+          currencies: ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC'],
+          metadata: {
+            supportedCurrencies: ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC'],
+            totalAddressCount: multiCurrencyKeys.length * 21, // 21 addresses per key for all currencies
+            generationTime: 0,
+            generatedLocally: true
+          }
         };
         data = serializedData;
       } else {
@@ -237,7 +271,8 @@ export default function Dashboard() {
           body: JSON.stringify({ 
             pageNumber: pageToGenerate,
             keysPerPage: navKeysPerPage,
-            multiCurrency: true  // Enable multi-currency generation
+            multiCurrency: true,  // Legacy flag for backward compatibility
+            currencies: ['BTC', 'BCH', 'DASH', 'DOGE', 'ETH', 'LTC', 'XRP', 'ZEC']  // Explicitly request all currencies
           }),
         });
 
@@ -1110,6 +1145,54 @@ export default function Dashboard() {
                 }}
               >
                 <NavigateBeforeIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            
+            <Typography variant="body2" color="text.secondary" sx={{ mx: 1, minWidth: '20px', textAlign: 'center' }}>
+              |
+            </Typography>
+            
+            <Tooltip title="Random Page (1 to Max Bitcoin Keyspace)" arrow>
+              <IconButton
+                size="small"
+                onClick={() => {
+                  try {
+                    // Calculate max possible pages in Bitcoin keyspace
+                    // Bitcoin private key space is 2^256, divided by keysPerPage
+                    const maxBitcoinKeys = BigInt('115792089237316195423570985008687907852837564279074904382605163141518161494336'); // 2^256
+                    const maxPages = maxBitcoinKeys / BigInt(navKeysPerPage);
+                    
+                    // Generate truly random page between 1 and maxPages
+                    const randomBuffer = new Uint8Array(32);
+                    crypto.getRandomValues(randomBuffer);
+                    let randomBigInt = BigInt(0);
+                    for (let i = 0; i < 32; i++) {
+                      randomBigInt = (randomBigInt << BigInt(8)) + BigInt(randomBuffer[i]);
+                    }
+                    
+                    // Ensure we get a page between 1 and maxPages
+                    const randomPage = (randomBigInt % maxPages) + BigInt(1);
+                    
+                    console.log(`🎲 Generated random page: ${randomPage.toString()} out of max ${maxPages.toString()}`);
+                    handlePageChange(randomPage.toString());
+                  } catch (error) {
+                    console.error('Random page generation error:', error);
+                    // Fallback to simpler random within available range
+                    const maxPage = Number(navTotalPages);
+                    const randomPage = Math.floor(Math.random() * maxPage) + 1;
+                    handlePageChange(randomPage.toString());
+                  }
+                }}
+                disabled={loading}
+                sx={{ 
+                  border: '1px solid',
+                  borderColor: 'warning.main',
+                  backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                  '&:hover': { backgroundColor: 'rgba(255, 193, 7, 0.2)' },
+                  '&:disabled': { borderColor: 'action.disabled' }
+                }}
+              >
+                <Typography sx={{ fontSize: '1rem' }}>🎲</Typography>
               </IconButton>
             </Tooltip>
             

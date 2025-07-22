@@ -33,7 +33,7 @@ import { CryptoCurrency } from '../../lib/types/multi-currency';
 // Currency configuration with enhanced display info
 const CURRENCY_DISPLAY_CONFIG = {
   BTC: {
-    icon: '₿',
+    icon: '🟠',
     name: 'Bitcoin',
     precision: 8,
     symbol: 'BTC',
@@ -346,7 +346,7 @@ const PortfolioAnalytics = memo<PortfolioAnalyticsProps>(({
         <Divider sx={{ my: 2 }} />
 
         {/* Currency Distribution */}
-        <Accordion defaultExpanded>
+        <Accordion>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <DonutIcon />

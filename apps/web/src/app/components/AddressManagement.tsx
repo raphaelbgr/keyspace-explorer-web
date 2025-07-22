@@ -33,13 +33,13 @@ import { useCopyToClipboard } from '../utils/clipboard';
 // Blockchain explorer configurations
 const EXPLORER_CONFIGS = {
   BTC: {
-    name: 'Blockstream',
-    baseUrl: 'https://blockstream.info/address/',
+    name: 'Blockchain.com',
+    baseUrl: 'https://blockchain.com/btc/address/',
     color: '#f7931a'
   },
   BCH: {
-    name: 'Bitcoin.com',
-    baseUrl: 'https://explorer.bitcoin.com/bch/address/',
+    name: 'Blockchain.com',
+    baseUrl: 'https://blockchain.com/bch/address/',
     color: '#00d4aa'
   },
   DASH: {
@@ -69,7 +69,7 @@ const EXPLORER_CONFIGS = {
   },
   ZEC: {
     name: 'Zcash Explorer',
-    baseUrl: 'https://explorer.zcha.in/accounts/',
+    baseUrl: 'https://mainnet.zcashexplorer.app/address/',
     color: '#f4b728'
   }
 };
@@ -101,10 +101,13 @@ const AddressManagement = memo<AddressManagementProps>(({
   const { copy } = useCopyToClipboard();
 
   const explorerConfig = EXPLORER_CONFIGS[currency];
-  const isValidAddress = address && address.length > 10; // Basic validation
+  
+  // Basic address validation
+  const isValidAddress = address && address.length > 10;
 
   // Handle copy to clipboard
-  const handleCopy = async (text: string, label: string) => {
+  const handleCopy = async (event: React.MouseEvent, text: string, label: string) => {
+    event.stopPropagation();
     const result = await copy(text);
     setNotification({
       message: result.success ? `${label} copied!` : result.message,
@@ -114,7 +117,8 @@ const AddressManagement = memo<AddressManagementProps>(({
   };
 
   // Handle blockchain explorer
-  const handleExplorer = () => {
+  const handleExplorer = (event: React.MouseEvent) => {
+    event.stopPropagation();
     if (isValidAddress && explorerConfig) {
       const url = `${explorerConfig.baseUrl}${address}`;
       window.open(url, '_blank', 'noopener,noreferrer');
@@ -154,15 +158,41 @@ const AddressManagement = memo<AddressManagementProps>(({
               flex: 1
             }}
           >
-            {truncateAddress(address, 8)}
+            {address}
           </Typography>
+
+          {/* Balance Display */}
+          {balance !== undefined && balance > 0 && (
+            <Chip 
+              label={`${balance.toFixed(8)} ${currency}`} 
+              size="small" 
+              color="success"
+              sx={{ 
+                fontSize: '0.5rem', 
+                height: 16, 
+                ml: 0.5,
+                '& .MuiChip-label': { px: 0.5 }
+              }}
+            />
+          )}
+          
+          {/* Zero Balance Indicator */}
+          {balance !== undefined && balance === 0 && (
+            <Typography 
+              variant="caption" 
+              color="text.secondary" 
+              sx={{ fontSize: '0.5rem', ml: 0.5 }}
+            >
+              0.00000000 {currency}
+            </Typography>
+          )}
 
           {/* Quick Copy Button */}
           {showCopy && isValidAddress && (
             <Tooltip title="Copy address">
               <IconButton
                 size="small"
-                onClick={() => handleCopy(address, 'Address')}
+                onClick={(e) => handleCopy(e, address, 'Address')}
                 sx={{ p: 0.25 }}
               >
                 <CopyIcon sx={{ fontSize: '0.9rem' }} />
@@ -263,7 +293,7 @@ const AddressManagement = memo<AddressManagementProps>(({
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
         {showCopy && (
-          <MenuItem onClick={() => handleCopy(address, 'Address')}>
+          <MenuItem onClick={(e) => handleCopy(e, address, 'Address')}>
             <ListItemIcon>
               <CopyIcon fontSize="small" />
             </ListItemIcon>
@@ -272,7 +302,7 @@ const AddressManagement = memo<AddressManagementProps>(({
         )}
 
         {addressType && (
-          <MenuItem onClick={() => handleCopy(`${addressType}: ${address}`, 'Address with type')}>
+          <MenuItem onClick={(e) => handleCopy(e, `${addressType}: ${address}`, 'Address with type')}>
             <ListItemIcon>
               <CopyIcon fontSize="small" />
             </ListItemIcon>
@@ -342,7 +372,7 @@ const AddressManagement = memo<AddressManagementProps>(({
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => handleCopy(address, 'Address')}>
+          <Button onClick={(e) => handleCopy(e, address, 'Address')}>
             Copy Address
           </Button>
           <Button onClick={() => setQrDialogOpen(false)}>
