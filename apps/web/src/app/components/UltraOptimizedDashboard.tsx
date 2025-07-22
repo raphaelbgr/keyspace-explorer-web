@@ -38,6 +38,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { useCopyToClipboard } from '../utils/clipboard';
 import { CryptoCurrency } from '../../lib/types/multi-currency';
 import AddressManagement from './AddressManagement';
+import { USDCalculationService } from '../../lib/services/USDCalculationService';
 
 // Currency configuration for multi-currency support
 const CURRENCY_CONFIG = {
@@ -70,10 +71,10 @@ const getBalance = (key: any, currency: CryptoCurrency, addressType?: string): n
     if (key.balances[currency] && typeof key.balances[currency] === 'object') {
       if (addressType) {
         const balance = key.balances[currency][addressType];
-        if (balance && typeof balance === 'object' && balance.balance !== undefined) {
-          return parseFloat(balance.balance);
-        }
-        return typeof balance === 'number' ? balance : 0;
+    if (balance && typeof balance === 'object' && balance.balance !== undefined) {
+      return parseFloat(balance.balance);
+    }
+    return typeof balance === 'number' ? balance : 0;
       } else {
         // Return total for currency
         return Object.values(key.balances[currency]).reduce((sum: number, bal: any) => {
@@ -89,7 +90,7 @@ const getBalance = (key: any, currency: CryptoCurrency, addressType?: string): n
     // Legacy format for Bitcoin: key.balances.p2pkh_compressed
     if (currency === 'BTC') {
       if (addressType && typeof key.balances[addressType] === 'number') {
-        return key.balances[addressType];
+    return key.balances[addressType];
       } else if (!addressType) {
         // Return total Bitcoin balance
         return Object.values(key.balances).reduce((sum: number, bal: any) => {
@@ -177,6 +178,9 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
   const [showAllCurrencies, setShowAllCurrencies] = useState(false);
   const { copy } = useCopyToClipboard();
   const t = useTranslation();
+  
+  // Get USD calculation service
+  const usdService = USDCalculationService.getInstance();
 
   // Handle copying to clipboard with user feedback
   const handleCopy = async (text: string) => {
@@ -347,16 +351,32 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                     <Typography variant="subtitle2" fontWeight="bold">
                       {config.name} ({config.shortName})
                     </Typography>
-                    <Chip 
-                      label={`Total: ${currencyBalance.toFixed(8)} ${config.shortName}`} 
-                      size="small" 
-                      color={currencyHasFunds ? "success" : "default"}
-                      sx={{ 
-                        fontSize: '0.6rem', 
-                        height: 18,
-                        backgroundColor: currencyHasFunds ? undefined : 'rgba(255,255,255,0.05)'
-                      }}
-                    />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography 
+                          variant="subtitle1" 
+                          fontWeight="bold"
+                          sx={{ 
+                            fontSize: '1rem',
+                            color: currencyHasFunds ? 'success.main' : 'text.primary'
+                          }}
+                        >
+                          {usdService.formatCryptoBalance(usdService.convertFromAtomicUnits(currencyBalance, currency), currency)} {config.shortName}
+                        </Typography>
+                        {currencyHasFunds && currencyBalance > 0 && (
+                          <Typography 
+                            variant="subtitle1" 
+                            fontWeight="bold"
+                            sx={{ 
+                              fontSize: '1rem',
+                              color: 'text.secondary'
+                            }}
+                          >
+                            {usdService.formatUSDValue(usdService.calculateUSDValueFromAtomic(currencyBalance, currency))}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
                     <Typography variant="caption" color="text.secondary">
                       {addressEntries.length} addresses
                     </Typography>
@@ -385,7 +405,7 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
                             </Typography>
                             {hasBalance && (
                               <Chip 
-                                label={`💰 ${balance.toFixed(8)} ${config.shortName}`} 
+                                label={`💰 ${usdService.formatCryptoBalance(usdService.convertFromAtomicUnits(balance, currency), currency)} ${config.shortName}`} 
                                 size="small" 
                                 color="success"
                                 sx={{ fontSize: '0.5rem', height: 16 }}
@@ -470,99 +490,127 @@ const UltraOptimizedDashboard = memo<UltraOptimizedDashboardProps>(({
             </Box>
           )}
 
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>{t.expand}</TableCell>
-                  <TableCell>{t.keyNumber}</TableCell>
-                  <TableCell>{t.privateKeyHex}</TableCell>
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>{t.expand}</TableCell>
+                <TableCell>{t.keyNumber}</TableCell>
+                <TableCell>{t.privateKeyHex}</TableCell>
                   <TableCell align="center">{t.totalBalance}</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {optimizedKeys.map((key, index) => {
-                  // Calculate absolute key number in Bitcoin keyspace (not relative to UI pagination)
-                  const keyspacePageNumber = pageData?.pageNumber || '1';
-                  const keysPerKeyspacePage = pageData?.keys?.length || 45; // Use actual keys per page from backend
-                  const keyNumber = Decimal(keyspacePageNumber).minus(1).times(keysPerKeyspacePage).plus(key.index).plus(1).toFixed(0);
-                  const globalIndex = (currentKeysPage - 1) * keysPerPage + index;
-                  const isExpanded = expandedKeys.has(globalIndex);
-                  const isLoadingAddresses = loadingAddresses.has(globalIndex);
-                  const areAddressesLoaded = loadedAddresses.has(globalIndex);
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {optimizedKeys.map((key, index) => {
+                // Calculate absolute key number in Bitcoin keyspace (not relative to UI pagination)
+                const keyspacePageNumber = pageData?.pageNumber || '1';
+                const keysPerKeyspacePage = pageData?.keys?.length || 45; // Use actual keys per page from backend
+                const keyNumber = Decimal(keyspacePageNumber).minus(1).times(keysPerKeyspacePage).plus(key.index).plus(1).toFixed(0);
+                const globalIndex = (currentKeysPage - 1) * keysPerPage + index;
+                const isExpanded = expandedKeys.has(globalIndex);
+                const isLoadingAddresses = loadingAddresses.has(globalIndex);
+                const areAddressesLoaded = loadedAddresses.has(globalIndex);
                   const totalBalance = getTotalBalance(key);
                   const availableCurrencies = getAvailableCurrencies(key);
-                  
-                  return (
-                    <React.Fragment key={index}>
-                      <TableRow hover data-key-index={index}>
-                        <TableCell>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleToggleExpansion(index)}
-                          >
-                            {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                          </IconButton>
-                        </TableCell>
-                        <TableCell>{truncateKeyNumber(keyNumber)}</TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <KeyIcon sx={{ fontSize: '1rem', color: '#FFD700' }} />
-                            <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.75rem' }}>
-                              {key.privateKey}
-                            </Typography>
-                          </Box>
-                        </TableCell>
+                
+                return (
+                  <React.Fragment key={index}>
+                    <TableRow hover data-key-index={index}>
+                      <TableCell>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleToggleExpansion(index)}
+                        >
+                          {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                        </IconButton>
+                      </TableCell>
+                      <TableCell>{truncateKeyNumber(keyNumber)}</TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <KeyIcon sx={{ fontSize: '1rem', color: '#FFD700' }} />
+                          <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.75rem' }}>
+                            {key.privateKey}
+                          </Typography>
+                        </Box>
+                      </TableCell>
                         
                         <TableCell align="center">
                           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <Typography variant="body2" fontWeight="bold">
-                              {totalBalance.toFixed(8)}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {hasMultiCurrencyData ? 'Multi' : 'BTC'}
-                            </Typography>
+                            {hasMultiCurrencyData ? (
+                              // For multi-currency, show USD total
+                              (() => {
+                                const usdTotal = availableCurrencies.reduce((total, currency) => {
+                                  const currencyBalance = getBalance(key, currency);
+                                  return total + usdService.calculateUSDValueFromAtomic(currencyBalance, currency);
+                                }, 0);
+                                return (
+                                  <>
+                                    <Typography variant="body2" fontWeight="bold">
+                                      {usdService.formatUSDValue(usdTotal)}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      USD Total
+                                    </Typography>
+                                  </>
+                                );
+                              })()
+                            ) : (
+                              // For Bitcoin-only, show BTC total
+                              (() => {
+                                const btcTotal = usdService.convertFromAtomicUnits(totalBalance, 'BTC');
+                                return (
+                                  <>
+                                    <Typography variant="body2" fontWeight="bold">
+                                      {usdService.formatCryptoBalance(btcTotal, 'BTC')}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      BTC
+                                    </Typography>
+                                  </>
+                                );
+                              })()
+                            )}
                             {totalBalance > 0 && (
-                              <Chip 
+                          <Chip 
                                 label="💰" 
-                                color="success" 
-                                size="small"
+                            color="success" 
+                            size="small"
                                 sx={{ mt: 0.5, height: 16, fontSize: '0.6rem' }}
-                              />
+                          />
+                        )}
+                          </Box>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={4}>
+                        <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                          <Box sx={{ margin: 1 }}>
+                            {isLoadingAddresses ? (
+                              <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                                <CircularProgress size={24} />
+                                <Typography variant="body2" sx={{ ml: 2 }}>
+                                  {t.loadingAddresses}
+                                </Typography>
+                              </Box>
+                            ) : areAddressesLoaded ? (
+                                renderMultiCurrencyAddresses(key, keyNumber, index)
+                            ) : (
+                              <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                                <Typography variant="body2" color="text.secondary">
+                                  {t.clickToLoadAddresses}
+                                </Typography>
+                              </Box>
                             )}
                           </Box>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={4}>
-                          <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                            <Box sx={{ margin: 1 }}>
-                              {isLoadingAddresses ? (
-                                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                                  <CircularProgress size={24} />
-                                  <Typography variant="body2" sx={{ ml: 2 }}>
-                                    {t.loadingAddresses}
-                                  </Typography>
-                                </Box>
-                              ) : areAddressesLoaded ? (
-                                renderMultiCurrencyAddresses(key, keyNumber, index)
-                              ) : (
-                                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-                                  <Typography variant="body2" color="text.secondary">
-                                    {t.clickToLoadAddresses}
-                                  </Typography>
-                                </Box>
-                              )}
-                            </Box>
-                          </Collapse>
-                        </TableCell>
-                      </TableRow>
-                    </React.Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                        </Collapse>
+                      </TableCell>
+                    </TableRow>
+                  </React.Fragment>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
         </Box>
       )}
       

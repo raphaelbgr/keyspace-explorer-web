@@ -26,6 +26,7 @@ import {
   Key as KeyIcon
 } from '@mui/icons-material';
 import { CryptoCurrency } from '../../lib/types/multi-currency';
+import { USDCalculationService } from '../../lib/services/USDCalculationService';
 
 // Currency configuration with blockchain explorer URLs
 const CURRENCY_CONFIG = {
@@ -126,12 +127,38 @@ interface AddressModalProps {
 
 const AddressModal = memo<AddressModalProps>(({ open, onClose, keyNumber, keyData }) => {
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+  
+  // Get USD calculation service
+  const usdService = USDCalculationService.getInstance();
 
   const handleCopyAddress = async (address: string) => {
     try {
-      await navigator.clipboard.writeText(address);
-      setCopiedAddress(address);
-      setTimeout(() => setCopiedAddress(null), 2000);
+      // Check if clipboard API is available
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(address);
+        setCopiedAddress(address);
+        setTimeout(() => setCopiedAddress(null), 2000);
+      } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = address;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+          document.execCommand('copy');
+          setCopiedAddress(address);
+          setTimeout(() => setCopiedAddress(null), 2000);
+        } catch (fallbackError) {
+          console.error('Fallback copy failed:', fallbackError);
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
     } catch (error) {
       console.error('Failed to copy address:', error);
     }
@@ -139,9 +166,32 @@ const AddressModal = memo<AddressModalProps>(({ open, onClose, keyNumber, keyDat
 
   const handleCopyPrivateKey = async () => {
     try {
-      await navigator.clipboard.writeText(keyData.privateKey);
-      setCopiedAddress('privateKey');
-      setTimeout(() => setCopiedAddress(null), 2000);
+      // Check if clipboard API is available
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(keyData.privateKey);
+        setCopiedAddress('privateKey');
+        setTimeout(() => setCopiedAddress(null), 2000);
+      } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = keyData.privateKey;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+          document.execCommand('copy');
+          setCopiedAddress('privateKey');
+          setTimeout(() => setCopiedAddress(null), 2000);
+        } catch (fallbackError) {
+          console.error('Fallback copy failed:', fallbackError);
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
     } catch (error) {
       console.error('Failed to copy private key:', error);
     }

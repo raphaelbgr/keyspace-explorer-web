@@ -29,6 +29,7 @@ import {
 } from '@mui/icons-material';
 import { CryptoCurrency } from '../../lib/types/multi-currency';
 import { useCopyToClipboard } from '../utils/clipboard';
+import { USDCalculationService } from '../../lib/services/USDCalculationService';
 
 // Blockchain explorer configurations
 const EXPLORER_CONFIGS = {
@@ -98,6 +99,9 @@ const AddressManagement = memo<AddressManagementProps>(({
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  
+  // Get USD calculation service
+  const usdService = USDCalculationService.getInstance();
   const { copy } = useCopyToClipboard();
 
   const explorerConfig = EXPLORER_CONFIGS[currency];
@@ -161,20 +165,33 @@ const AddressManagement = memo<AddressManagementProps>(({
             {address}
           </Typography>
 
-          {/* Balance Display */}
-          {balance !== undefined && balance > 0 && (
-            <Chip 
-              label={`${balance.toFixed(8)} ${currency}`} 
-              size="small" 
-              color="success"
-              sx={{ 
-                fontSize: '0.5rem', 
-                height: 16, 
-                ml: 0.5,
-                '& .MuiChip-label': { px: 0.5 }
-              }}
-            />
-          )}
+          {/* Balance Display with USD */}
+          {balance !== undefined && balance > 0 && (() => {
+            const usdData = usdService.calculateUSDBalanceDataFromAtomic(balance, currency);
+            return (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 0.5 }}>
+                <Chip 
+                  label={`${usdData.formattedCrypto} ${currency}`} 
+                  size="small" 
+                  color="success"
+                  sx={{ 
+                    fontSize: '0.6rem', 
+                    height: 20,
+                    '& .MuiChip-label': { px: 0.5 }
+                  }}
+                />
+                {usdData.usdValue > 0 && (
+                  <Typography 
+                    variant="caption" 
+                    color="text.secondary" 
+                    sx={{ fontSize: '0.6rem', fontWeight: 'medium' }}
+                  >
+                    {usdData.formattedUSD}
+                  </Typography>
+                )}
+              </Box>
+            );
+          })()}
           
           {/* Zero Balance Indicator */}
           {balance !== undefined && balance === 0 && (
@@ -183,7 +200,7 @@ const AddressManagement = memo<AddressManagementProps>(({
               color="text.secondary" 
               sx={{ fontSize: '0.5rem', ml: 0.5 }}
             >
-              0.00000000 {currency}
+              {usdService.formatCryptoBalance(0, currency)} {currency}
             </Typography>
           )}
 
@@ -260,15 +277,29 @@ const AddressManagement = memo<AddressManagementProps>(({
           {!isValidAddress && <ErrorIcon sx={{ fontSize: '1rem', color: 'error.main' }} />}
         </Typography>
 
-        {/* Balance Display */}
-        {balance !== undefined && balance > 0 && (
-          <Chip
-            label={`${balance.toFixed(8)} ${currency}`}
-            size="small"
-            color="success"
-            sx={{ fontSize: '0.7rem' }}
-          />
-        )}
+        {/* Balance Display with USD */}
+        {balance !== undefined && balance > 0 && (() => {
+          const usdData = usdService.calculateUSDBalanceDataFromAtomic(balance, currency);
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
+              <Chip
+                label={`${usdData.formattedCrypto} ${currency}`}
+                size="small"
+                color="success"
+                sx={{ fontSize: '0.85rem', height: 24 }}
+              />
+              {usdData.usdValue > 0 && (
+                <Typography 
+                  variant="body2" 
+                  color="text.secondary" 
+                  sx={{ fontSize: '0.85rem', fontWeight: 'medium' }}
+                >
+                  {usdData.formattedUSD}
+                </Typography>
+              )}
+            </Box>
+          );
+        })()}
 
         {/* Action Menu */}
         {isValidAddress && (

@@ -49,7 +49,7 @@ import UltraOptimizedDashboard from './components/UltraOptimizedDashboard';
 import BalanceStatus from './components/BalanceStatus';
 import { useScannerStore } from './store/scannerStore';
 import { clientKeyGenerationService } from '../lib/services/ClientKeyGenerationService';
-import PortfolioAnalytics from './components/PortfolioAnalytics';
+import CryptoPriceDashboard from './components/CryptoPriceDashboard';
 import { CryptoCurrency } from '../lib/types/multi-currency';
 
 interface PageData {
@@ -1067,12 +1067,10 @@ export default function Dashboard() {
           onToggleLocalGeneration={setGenerateLocally}
         />
 
-        {/* Portfolio Analytics - Show for multi-currency data */}
-        {isMultiCurrency && pageData && (
-          <PortfolioAnalytics
-            keys={pageData.keys}
-            currencies={activeCurrencies as any}
-            compact={false}
+        {/* Crypto Price Dashboard - Live cryptocurrency prices */}
+        {isMultiCurrency && (
+          <CryptoPriceDashboard
+            refreshInterval={30000}
           />
         )}
 
